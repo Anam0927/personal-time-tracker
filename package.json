@@ -1,0 +1,14 @@
+{
+  "name": "time-tracker",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "cli": "bun run index.ts",
+    "check": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
