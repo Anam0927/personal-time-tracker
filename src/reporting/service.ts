@@ -1,4 +1,5 @@
-import type { ReportResult, ReportScope } from "../types";
+import type { ReportResult } from "../types";
+import type { ReportScope } from "./schemas";
 
 /**
  * Reporting service boundary.

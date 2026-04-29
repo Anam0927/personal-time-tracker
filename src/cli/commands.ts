@@ -1,80 +1,72 @@
-import type { ReportScope } from "../types";
+import { Command, InvalidOptionArgumentError, Option } from "commander";
+import z from "zod";
+import { reportScope } from "../reporting/schemas";
+import { logLevel } from "@/logging/schemas";
 
-export type CliCommandName =
-  | "help"
-  | "tui"
-  | "start"
-  | "stop"
-  | "switch"
-  | "status"
-  | "report"
-  | "unknown";
+function toLowerString(value: string) {
+  const parseResult = z
+    .string()
+    .trim()
+    .nonempty()
+    .toLowerCase()
+    .safeParse(value);
 
-export type CliCommand =
-  | { name: "help"; args: string[] }
-  | { name: "tui"; args: string[] }
-  | { name: "start"; args: string[] }
-  | { name: "stop"; args: string[] }
-  | { name: "switch"; args: string[] }
-  | { name: "status"; args: string[] }
-  | { name: "report"; reportScope: ReportScope; args: string[] }
-  | { name: "unknown"; rawName: string; args: string[] };
-
-/**
- * Parse CLI args into a command shape.
- * TODO(AA-379): Replace with a robust parser and typed options.
- */
-export const parseCliCommand = (argv: string[]): CliCommand => {
-  const [rawName, ...remainingArgs] = argv;
-
-  if (!rawName || rawName === "help" || rawName === "--help" || rawName === "-h") {
-    return { name: "help", args: remainingArgs };
+  if (parseResult.error) {
+    throw new InvalidOptionArgumentError(
+      z.treeifyError(parseResult.error).errors?.[0] ||
+        "Invalid string argument",
+    );
   }
 
-  if (rawName === "tui") {
-    return { name: "tui", args: remainingArgs };
-  }
+  return parseResult.data;
+}
 
-  if (rawName === "report") {
-    const reportScope = parseReportScope(remainingArgs[0]);
-    return { name: "report", reportScope, args: remainingArgs.slice(1) };
-  }
+export const commandProgram = new Command();
 
-  if (rawName === "start" || rawName === "stop" || rawName === "switch" || rawName === "status") {
-    return { name: rawName, args: remainingArgs };
-  }
+commandProgram
+  .name("time-tracker")
+  .alias("tt")
+  .description("A simple time tracking CLI tool.")
+  .version("0.1.0");
 
-  return { name: "unknown", rawName, args: remainingArgs };
-};
+commandProgram.addOption(
+  new Option("--log-level <level>", "Set the log level").choices(
+    logLevel.options,
+  ),
+);
 
-const parseReportScope = (rawScope: string | undefined): ReportScope => {
-  if (!rawScope) {
-    return "today";
-  }
+commandProgram.option(
+  "--config <path>",
+  "Path to config file relative to project root",
+);
 
-  if (rawScope === "today" || rawScope === "week" || rawScope === "client" || rawScope === "project") {
-    return rawScope;
-  }
+commandProgram
+  .command("start")
+  .description("Start a new timer for a client and project.")
+  .requiredOption("-c, --client <client>", "Client name", toLowerString)
+  .requiredOption("-p, --project <project>", "Project name", toLowerString);
 
-  throw new Error(
-    `Invalid report scope: ${rawScope}. Expected one of: today, week, client, project.`,
+commandProgram.command("stop").description("Stop the active timer.");
+
+commandProgram
+  .command("switch")
+  .description("Switch to a different client and project.")
+  .requiredOption("-c, --client <client>", "Client name", toLowerString)
+  .requiredOption("-p, --project <project>", "Project name", toLowerString);
+
+commandProgram
+  .command("status")
+  .description("Show the status of the active timer.");
+
+commandProgram
+  .command("report")
+  .description(
+    "Generate a report for a given scope (today, week, client, project).",
+  )
+  .addOption(
+    new Option("-s, --scope <scope>", "Report scope")
+      .choices(reportScope.options)
+      .default("today"),
   );
-};
 
-export const cliHelpText = (): string => {
-  return [
-    "track (scaffold)",
-    "",
-    "Usage:",
-    "  bun run cli -- <command>",
-    "",
-    "Commands:",
-    "  help                Show this help output",
-    "  tui                 Launch TUI placeholder",
-    "  start               Start timer (placeholder)",
-    "  stop                Stop timer (placeholder)",
-    "  switch              Switch timer (placeholder)",
-    "  status              Show status (placeholder)",
-    "  report [scope]      Report placeholder (scope: today|week|client|project)",
-  ].join("\n");
-};
+commandProgram.command("tui").description("Launch the TUI placeholder.");

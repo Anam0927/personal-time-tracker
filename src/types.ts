@@ -30,5 +30,3 @@ export interface ReportResult {
   rows: ReportRow[];
   totals: TimeTotals;
 }
-
-export type ReportScope = "today" | "week" | "client" | "project";
