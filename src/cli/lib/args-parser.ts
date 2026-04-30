@@ -1,24 +1,45 @@
 import type { LogLevel } from "@/logging/schemas";
+import { createCommandProgram } from "../commands";
+import type { ParsedCliCommand } from "./parser.types";
 import type { ReportScope } from "@/reporting/schemas";
-import { commandProgram } from "../commands";
-
-export type CliCommand =
-  | { name: "tui" }
-  | { name: "start"; client: string; project: string }
-  | { name: "stop" }
-  | { name: "switch"; client: string; project: string }
-  | { name: "status" }
-  | { name: "report"; reportScope: ReportScope };
 
 /**
  * Parse CLI args into a command shape.
  */
-export const parseCliCommand = (
-  argv: string[],
-): (CliCommand & { logLevel?: LogLevel; config?: string }) | null => {
-  commandProgram.parse(argv, { from: "user" });
+export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
+  const userArgv = [...argv];
+  const commandProgram = createCommandProgram();
 
-  const command = commandProgram.commands.find((cmd) => cmd.name() === argv[0]);
+  // prevent commander from exiting the process automatically on error
+  commandProgram.exitOverride();
+
+  try {
+    commandProgram.parse(userArgv, { from: "user" });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "commander.help"
+    ) {
+      return { kind: "help" };
+    }
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "commander.version"
+    ) {
+      return { kind: "version" };
+    }
+
+    throw error;
+  }
+
+  const command = commandProgram.commands.find(
+    (cmd) => cmd.name() === userArgv[0],
+  );
 
   if (!command) {
     return null;
@@ -36,12 +57,18 @@ export const parseCliCommand = (
     };
 
     if (Object.keys(startOptions).length > 0) {
-      return { name: "start", ...startOptions, ...defaultOptions };
+      return {
+        kind: "command",
+        command: { name: "start", ...startOptions, ...defaultOptions },
+      };
     }
   }
 
   if (command.name() === "stop") {
-    return { name: "stop", ...defaultOptions };
+    return {
+      kind: "command",
+      command: { name: "stop", ...defaultOptions },
+    };
   }
 
   if (command.name() === "switch") {
@@ -51,12 +78,18 @@ export const parseCliCommand = (
     };
 
     if (Object.keys(switchOptions).length > 0) {
-      return { name: "switch", ...switchOptions, ...defaultOptions };
+      return {
+        kind: "command",
+        command: { name: "switch", ...switchOptions, ...defaultOptions },
+      };
     }
   }
 
   if (command.name() === "status") {
-    return { name: "status", ...defaultOptions };
+    return {
+      kind: "command",
+      command: { name: "status", ...defaultOptions },
+    };
   }
 
   if (command.name() === "report") {
@@ -65,14 +98,20 @@ export const parseCliCommand = (
     };
 
     return {
-      name: "report",
-      reportScope: reportOptions.scope,
-      ...defaultOptions,
+      kind: "command",
+      command: {
+        name: "report",
+        reportScope: reportOptions.scope,
+        ...defaultOptions,
+      },
     };
   }
 
   if (command.name() === "tui") {
-    return { name: "tui", ...defaultOptions };
+    return {
+      kind: "command",
+      command: { name: "tui", ...defaultOptions },
+    };
   }
 
   return null;

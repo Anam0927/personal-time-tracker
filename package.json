@@ -6,20 +6,25 @@
   "scripts": {
     "cli": "bun run index.ts",
     "check": "bunx tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "build": "bun build ./index.ts --outfile ./tt --bytecode --format=esm --compile"
   },
   "dependencies": {
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
     "cosmiconfig": "^9.0.1",
     "es-toolkit": "^1.46.0",
+    "ink": "^7.0.1",
     "pino": "^10.3.1",
     "pino-roll": "^4.0.0",
+    "react": "^19.2.5",
+    "react-devtools-core": "^7.0.1",
     "xdg-basedir": "^5.1.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19.2.14",
     "pino-pretty": "^13.1.3",
     "typescript": "^5"
   }

@@ -3,14 +3,27 @@ import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { xdgConfig } from "xdg-basedir";
 import { configSchema, type Config } from "./schemas";
+import type { LogLevel } from "@/logging/schemas";
 
 const MODULE_NAME = "time-tracker";
 
-function parseConfig(config: Record<string, unknown>): Config {
-  return configSchema.parse(config);
+function parseConfig(
+  config: Record<string, unknown>,
+  logLevelOverride?: LogLevel,
+): Config {
+  const parsedConfig = configSchema.parse(config);
+
+  if (logLevelOverride) {
+    parsedConfig.logging.level = logLevelOverride;
+  }
+
+  return parsedConfig;
 }
 
-export async function loadConfig(argsConfigPath?: string): Promise<Config> {
+export async function loadConfig(
+  argsConfigPath?: string,
+  argsLogLevel?: LogLevel,
+): Promise<Config> {
   if (argsConfigPath) {
     const argsConfigFullPath = path.resolve(argsConfigPath);
 
@@ -19,7 +32,7 @@ export async function loadConfig(argsConfigPath?: string): Promise<Config> {
     }).then((content) => JSON.parse(content));
 
     if (argsConfig) {
-      return parseConfig(argsConfig);
+      return parseConfig(argsConfig, argsLogLevel);
     }
   }
 
@@ -44,7 +57,7 @@ export async function loadConfig(argsConfigPath?: string): Promise<Config> {
   const result = await explorer.search();
 
   if (result && result.config && !result.isEmpty) {
-    return parseConfig(result.config);
+    return parseConfig(result.config, argsLogLevel);
   }
 
   const globalConfig = await readFile(globalConfigPath, {
@@ -65,8 +78,8 @@ export async function loadConfig(argsConfigPath?: string): Promise<Config> {
     });
 
   if (globalConfig) {
-    return parseConfig(globalConfig);
+    return parseConfig(globalConfig, argsLogLevel);
   }
 
-  return parseConfig({});
+  return parseConfig({}, argsLogLevel);
 }

@@ -1,4 +1,5 @@
 import type { Config } from "@/config/schemas";
+import type { CliCommand } from "@/cli/lib/parser.types";
 import type { Logger } from "@/logging/logger";
 
 export class CliApp {
@@ -10,7 +11,7 @@ export class CliApp {
     this.logger = logger;
   }
 
-  async run(name: string) {
-    this.logger.info(`Running command: ${name}`);
+  async run(command: CliCommand) {
+    this.logger.info(`Running command: ${command.name}`);
   }
 }
