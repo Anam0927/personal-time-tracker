@@ -9,14 +9,42 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
-export interface EntryTags {
+export interface AppState {
+  key: string;
+  updated_at: string;
+  value: string | null;
+}
+
+export interface Clients {
+  archived: Generated<number>;
   created_at: Generated<string>;
-  tag_id: number;
-  time_entry_id: number;
+  id: Generated<number>;
+  name: string;
+  updated_at: Generated<string>;
+}
+
+export interface NotificationEvents {
+  created_at: Generated<string>;
+  id: Generated<number>;
+  notification_sent_at: string | null;
+  notification_type: string | null;
+  session_id: number;
+  threshold_minutes: number;
+  threshold_reached_at: string;
+}
+
+export interface PauseEvents {
+  created_at: Generated<string>;
+  id: Generated<number>;
+  paused_at: string;
+  reason: string | null;
+  resumed_at: string | null;
+  session_id: number;
 }
 
 export interface Projects {
   archived: Generated<number>;
+  client_id: number | null;
   color: string | null;
   created_at: Generated<string>;
   description: string | null;
@@ -25,24 +53,36 @@ export interface Projects {
   updated_at: Generated<string>;
 }
 
+export interface Sessions {
+  created_at: Generated<string>;
+  ended_at: string | null;
+  id: Generated<number>;
+  note: string | null;
+  project_id: number | null;
+  started_at: string;
+  status: "active" | "paused" | "completed";
+  threshold_minutes: number | null;
+}
+
+export interface SessionTags {
+  created_at: Generated<string>;
+  session_id: number;
+  tag_id: number;
+}
+
 export interface Tags {
   created_at: Generated<string>;
   id: Generated<number>;
   name: string;
 }
 
-export interface TimeEntries {
-  created_at: Generated<string>;
-  description: string;
-  ended_at: string | null;
-  id: Generated<number>;
-  project_id: number | null;
-  started_at: string;
-}
-
 export interface DB {
-  entry_tags: EntryTags;
+  app_state: AppState;
+  clients: Clients;
+  notification_events: NotificationEvents;
+  pause_events: PauseEvents;
   projects: Projects;
+  session_tags: SessionTags;
+  sessions: Sessions;
   tags: Tags;
-  time_entries: TimeEntries;
 }

@@ -4,9 +4,14 @@
   "url": "env(DATABASE_URL)",
   "overrides": {
     "columns": {
+      "clients.id": "Generated<number>",
       "projects.id": "Generated<number>",
-      "time_entries.id": "Generated<number>",
-      "tags.id": "Generated<number>"
+      "sessions.id": "Generated<number>",
+      "sessions.status": "'active' | 'paused' | 'completed'",
+      "tags.id": "Generated<number>",
+      "pause_events.id": "Generated<number>",
+      "notification_events.id": "Generated<number>",
+      "app_state.key": "string"
     }
   }
 }
