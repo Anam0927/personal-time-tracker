@@ -1,0 +1,12 @@
+{
+  "dialect": "kysely-bun-sqlite",
+  "outFile": "./src/db/types.ts",
+  "url": "env(DATABASE_URL)",
+  "overrides": {
+    "columns": {
+      "projects.id": "Generated<number>",
+      "time_entries.id": "Generated<number>",
+      "tags.id": "Generated<number>"
+    }
+  }
+}

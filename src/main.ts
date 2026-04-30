@@ -34,6 +34,9 @@ const main = async (): Promise<void> => {
       return
     }
 
+    const { migrateToLatest } = await import("./db/db")
+    await migrateToLatest()
+
     const command = parseResult.command
 
     if (command.name === "tui") {
