@@ -6,17 +6,24 @@ import { BunSqliteDialect } from "kysely-bun-sqlite"
 import { getDbPath, ensureDbDir } from "./path"
 import type { DB } from "./types"
 
-ensureDbDir()
+let _db: Kysely<DB> | null = null
 
-const bunDb = new Database(getDbPath())
-bunDb.run("PRAGMA journal_mode = WAL")
-bunDb.run("PRAGMA foreign_keys = ON")
+export function initDb(): Kysely<DB> {
+  if (_db) return _db
 
-export const db = new Kysely<DB>({
-  dialect: new BunSqliteDialect({
-    database: bunDb,
-  }),
-})
+  ensureDbDir()
+  const bunDb = new Database(getDbPath())
+  bunDb.run("PRAGMA journal_mode = WAL")
+  bunDb.run("PRAGMA foreign_keys = ON")
+
+  _db = new Kysely<DB>({
+    dialect: new BunSqliteDialect({
+      database: bunDb,
+    }),
+  })
+
+  return _db
+}
 
 export async function migrateToLatest(): Promise<void> {
   const { runMigrations } = await import("./migrate")

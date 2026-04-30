@@ -14,25 +14,25 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
   // prevent commander from exiting the process automatically on error
   commandProgram.exitOverride()
 
+  for (const cmd of commandProgram.commands) {
+    cmd.exitOverride()
+  }
+
   try {
     commandProgram.parse(userArgv, { from: "user" })
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "commander.help"
-    ) {
-      return { kind: "help" }
-    }
+    if (typeof error === "object" && error !== null && "code" in error) {
+      if (error.code === "commander.help" || error.code === "commander.helpDisplayed") {
+        return { kind: "help" }
+      }
 
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "commander.version"
-    ) {
-      return { kind: "version" }
+      if (error.code === "commander.version") {
+        return { kind: "version" }
+      }
+
+      if (error.code === "commander.unknownCommand") {
+        return null
+      }
     }
 
     throw error

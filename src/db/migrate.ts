@@ -3,9 +3,11 @@ import path from "node:path"
 
 import { Migrator, FileMigrationProvider } from "kysely"
 
-import { db } from "./db"
+import { initDb } from "./db"
 
 export async function runMigrations() {
+  const db = initDb()
+
   const migrator = new Migrator({
     db,
     provider: new FileMigrationProvider({

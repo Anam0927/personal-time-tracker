@@ -1,50 +1,12 @@
 import path from "node:path"
 
-import { pino, transport, type TransportMultiOptions } from "pino"
+import pino, { transport, type TransportMultiOptions } from "pino"
 import { xdgState } from "xdg-basedir"
 
 import type { LogLevel } from "./schemas"
 
 export class Logger {
-  private logger: ReturnType<typeof pino>
-
-  constructor(logLevel: LogLevel = "info", retentionPeriodInDays: number = 7) {
-    const isDevelopment = process.env.NODE_ENV !== "production"
-
-    let targets: TransportMultiOptions["targets"] = []
-
-    if (!isDevelopment) {
-      if (!xdgState) {
-        throw new Error("XDG_STATE_HOME is not set. Cannot determine log directory.")
-      }
-
-      targets = [
-        {
-          target: "pino-roll",
-          options: {
-            file: path.resolve(path.join(xdgState, "time-tracker", "logs", "app")),
-            mkdir: true,
-            frequency: "daily",
-            dateFormat: "yyyy-MM-dd",
-            limit: {
-              count: retentionPeriodInDays,
-            },
-          },
-        },
-      ]
-    }
-
-    targets = [...targets, { target: "pino-pretty" }]
-
-    this.logger = pino(
-      {
-        level: logLevel,
-      },
-      transport({
-        targets,
-      }),
-    )
-  }
+  constructor(private logger: pino.BaseLogger) {}
 
   info(message: string, details?: Record<string, unknown>) {
     if (!details) {
@@ -77,4 +39,47 @@ export class Logger {
       this.logger.warn(details, message)
     }
   }
+}
+
+export function createLogger(
+  logLevel: LogLevel = "info",
+  retentionPeriodInDays: number = 7,
+): Logger {
+  const isDevelopment = process.env.NODE_ENV !== "production"
+
+  let targets: TransportMultiOptions["targets"] = []
+
+  if (!isDevelopment) {
+    if (!xdgState) {
+      throw new Error("XDG_STATE_HOME is not set. Cannot determine log directory.")
+    }
+
+    targets = [
+      {
+        target: "pino-roll",
+        options: {
+          file: path.resolve(path.join(xdgState, "time-tracker", "logs", "app")),
+          mkdir: true,
+          frequency: "daily",
+          dateFormat: "yyyy-MM-dd",
+          limit: {
+            count: retentionPeriodInDays,
+          },
+        },
+      },
+    ]
+  }
+
+  targets = [...targets, { target: "pino-pretty" }]
+
+  const pinoInstance = pino(
+    {
+      level: logLevel,
+    },
+    transport({
+      targets,
+    }),
+  )
+
+  return new Logger(pinoInstance)
 }

@@ -1,7 +1,8 @@
 import { CliApp } from "./cli/app"
 import { parseCliCommand } from "./cli/lib/args-parser"
 import { loadConfig } from "./config/load"
-import { Logger } from "./logging/logger"
+import { createLogger } from "./logging/logger"
+import { initDb } from "./db/db"
 import { InkTuiApp } from "./tui/app"
 
 type CommanderBootstrapError = Error & {
@@ -34,6 +35,7 @@ const main = async (): Promise<void> => {
       return
     }
 
+    initDb()
     const { migrateToLatest } = await import("./db/db")
     await migrateToLatest()
 
@@ -55,7 +57,7 @@ const main = async (): Promise<void> => {
     }
 
     const config = await loadConfig(command.config, command.logLevel)
-    const logger = new Logger(config.logging.level, config.logging.retentionPeriodInDays)
+    const logger = createLogger(config.logging.level, config.logging.retentionPeriodInDays)
     const app = new CliApp({
       config,
       logger,
