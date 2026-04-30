@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from "bun:test"
+import { describe, expect, it, beforeAll, afterAll, beforeEach } from "bun:test"
 import { existsSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -148,6 +148,9 @@ describe("schema validation", () => {
 
     expect(session).toBeDefined()
     expect(session!.project_id).toBeNull()
+
+    // Clean up: mark session as completed to free the active slot for subsequent tests
+    await db.updateTable("sessions").set({ status: "completed" }).where("id", "=", sid).execute()
   })
 
   it("enforces ON DELETE CASCADE for session_tags", async () => {
@@ -276,6 +279,11 @@ describe("schema validation", () => {
 
       expect(result.insertId).toBeDefined()
       expect(Number(result.insertId)).toBeGreaterThan(0)
+
+      // Clean up active sessions to avoid blocking subsequent tests with the single-active constraint
+      if (status === "active") {
+        await db.updateTable("sessions").set({ status: "completed" }).where("id", "=", Number(result.insertId)).execute()
+      }
     })
 
   it("has indexes on sessions, session_tags, pause_events, notification_events", async () => {
@@ -292,6 +300,7 @@ describe("schema validation", () => {
     expect(indexNames).toContain("idx_sessions_status")
     expect(indexNames).toContain("idx_pause_events_session")
     expect(indexNames).toContain("idx_notification_events_session")
+    expect(indexNames).toContain("idx_sessions_single_active")
   })
 
   it("has triggers on clients and projects", async () => {
@@ -303,5 +312,139 @@ describe("schema validation", () => {
 
     expect(triggerNames).toContain("trg_clients_updated_at")
     expect(triggerNames).toContain("trg_projects_updated_at")
+  })
+
+  describe("single active session enforcement", () => {
+    // Clean slate: remove any leftover sessions from prior tests
+    beforeEach(async () => {
+      await db.deleteFrom("sessions").execute()
+    })
+
+    it("inserts the first active session", async () => {
+      const result = await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      expect(result.insertId).toBeDefined()
+      expect(Number(result.insertId)).toBeGreaterThan(0)
+    })
+
+    it("rejects a second active session", async () => {
+      // Insert first active session
+      await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      // Second active session should be rejected by the partial unique index
+      const promise = db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .execute()
+
+      expect(promise).rejects.toThrow(/UNIQUE|constraint/i)
+    })
+
+    it("allows a paused session alongside an active session", async () => {
+      // Insert an active session
+      await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      // A paused session should be allowed
+      const result = await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "paused",
+        })
+        .executeTakeFirst()
+
+      expect(result.insertId).toBeDefined()
+    })
+
+    it("allows a completed session alongside an active session", async () => {
+      // Insert an active session
+      await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      // A completed session should be allowed
+      const result = await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "completed",
+        })
+        .executeTakeFirst()
+
+      expect(result.insertId).toBeDefined()
+    })
+
+    it("allows a new active session after transitioning the old one to paused", async () => {
+      // Insert an active session
+      await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      // Transition it to paused
+      await db.updateTable("sessions").set({ status: "paused" }).where("status", "=", "active").execute()
+
+      // Now a new active session should succeed
+      const result = await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      expect(result.insertId).toBeDefined()
+    })
+
+    it("allows updating a non-status column on the active session", async () => {
+      // Insert an active session
+      const { insertId } = await db
+        .insertInto("sessions")
+        .values({
+          started_at: new Date().toISOString(),
+          status: "active",
+        })
+        .executeTakeFirst()
+
+      const sid = Number(insertId)
+
+      // Updating the note (non-status column) should succeed
+      const updateResult = await db
+        .updateTable("sessions")
+        .set({ note: "updated note" })
+        .where("id", "=", sid)
+        .executeTakeFirst()
+
+      expect(updateResult.numUpdatedRows).toBeDefined()
+      expect(Number(updateResult.numUpdatedRows)).toBe(1)
+    })
   })
 })
