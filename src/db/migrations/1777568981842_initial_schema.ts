@@ -29,7 +29,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     await trx.schema
       .createTable("sessions")
       .addColumn("id", "integer", (col) => col.primaryKey().autoIncrement())
-      .addColumn("project_id", "integer", (col) => col.references("projects.id").onDelete("set null"))
+      .addColumn("project_id", "integer", (col) =>
+        col.references("projects.id").onDelete("set null"),
+      )
       .addColumn("note", "text")
       .addColumn("started_at", "text", (col) => col.notNull())
       .addColumn("ended_at", "text")
@@ -50,8 +52,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     // 5. session_tags (composite PK via addPrimaryKeyConstraint)
     await trx.schema
       .createTable("session_tags")
-      .addColumn("session_id", "integer", (col) => col.notNull().references("sessions.id").onDelete("cascade"))
-      .addColumn("tag_id", "integer", (col) => col.notNull().references("tags.id").onDelete("cascade"))
+      .addColumn("session_id", "integer", (col) =>
+        col.notNull().references("sessions.id").onDelete("cascade"),
+      )
+      .addColumn("tag_id", "integer", (col) =>
+        col.notNull().references("tags.id").onDelete("cascade"),
+      )
       .addColumn("created_at", "text", (col) => col.notNull().defaultTo(sql`(datetime('now'))`))
       .addPrimaryKeyConstraint("pk_session_tags", ["session_id", "tag_id"])
       .execute()
