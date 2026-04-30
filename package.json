@@ -7,7 +7,11 @@
     "cli": "bun run index.ts",
     "check": "bunx tsc --noEmit",
     "test": "bun test",
-    "build": "bun build ./index.ts --outfile ./tt --bytecode --format=esm --compile"
+    "build": "bun build ./index.ts --outfile ./tt --bytecode --format=esm --compile",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check"
   },
   "dependencies": {
     "chalk": "^5.6.2",

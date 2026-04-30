@@ -1,20 +1,21 @@
-import type { LogLevel } from "@/logging/schemas";
-import { createCommandProgram } from "../commands";
-import type { ParsedCliCommand } from "./parser.types";
-import type { ReportScope } from "@/reporting/schemas";
+import type { LogLevel } from "@/logging/schemas"
+import type { ReportScope } from "@/reporting/schemas"
+
+import { createCommandProgram } from "../commands"
+import type { ParsedCliCommand } from "./parser.types"
 
 /**
  * Parse CLI args into a command shape.
  */
 export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
-  const userArgv = [...argv];
-  const commandProgram = createCommandProgram();
+  const userArgv = [...argv]
+  const commandProgram = createCommandProgram()
 
   // prevent commander from exiting the process automatically on error
-  commandProgram.exitOverride();
+  commandProgram.exitOverride()
 
   try {
-    commandProgram.parse(userArgv, { from: "user" });
+    commandProgram.parse(userArgv, { from: "user" })
   } catch (error) {
     if (
       typeof error === "object" &&
@@ -22,7 +23,7 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
       "code" in error &&
       error.code === "commander.help"
     ) {
-      return { kind: "help" };
+      return { kind: "help" }
     }
 
     if (
@@ -31,36 +32,34 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
       "code" in error &&
       error.code === "commander.version"
     ) {
-      return { kind: "version" };
+      return { kind: "version" }
     }
 
-    throw error;
+    throw error
   }
 
-  const command = commandProgram.commands.find(
-    (cmd) => cmd.name() === userArgv[0],
-  );
+  const command = commandProgram.commands.find((cmd) => cmd.name() === userArgv[0])
 
   if (!command) {
-    return null;
+    return null
   }
 
   const defaultOptions = commandProgram.opts() as {
-    logLevel?: LogLevel;
-    config?: string;
-  };
+    logLevel?: LogLevel
+    config?: string
+  }
 
   if (command.name() === "start") {
     const startOptions = command.opts() as {
-      client: string;
-      project: string;
-    };
+      client: string
+      project: string
+    }
 
     if (Object.keys(startOptions).length > 0) {
       return {
         kind: "command",
         command: { name: "start", ...startOptions, ...defaultOptions },
-      };
+      }
     }
   }
 
@@ -68,20 +67,20 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
     return {
       kind: "command",
       command: { name: "stop", ...defaultOptions },
-    };
+    }
   }
 
   if (command.name() === "switch") {
     const switchOptions = command.opts() as {
-      client: string;
-      project: string;
-    };
+      client: string
+      project: string
+    }
 
     if (Object.keys(switchOptions).length > 0) {
       return {
         kind: "command",
         command: { name: "switch", ...switchOptions, ...defaultOptions },
-      };
+      }
     }
   }
 
@@ -89,13 +88,13 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
     return {
       kind: "command",
       command: { name: "status", ...defaultOptions },
-    };
+    }
   }
 
   if (command.name() === "report") {
     const reportOptions = command.opts() as {
-      scope: ReportScope;
-    };
+      scope: ReportScope
+    }
 
     return {
       kind: "command",
@@ -104,15 +103,15 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
         reportScope: reportOptions.scope,
         ...defaultOptions,
       },
-    };
+    }
   }
 
   if (command.name() === "tui") {
     return {
       kind: "command",
       command: { name: "tui", ...defaultOptions },
-    };
+    }
   }
 
-  return null;
-};
+  return null
+}

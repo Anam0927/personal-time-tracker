@@ -1,11 +1,8 @@
-export const shouldExitNormally = (
-  input: string,
-  isEscape: boolean,
-): boolean => {
+export const shouldExitNormally = (input: string, isEscape: boolean): boolean => {
   if (isEscape) {
-    return true;
+    return true
   }
 
-  const normalizedInput = input.trim().toLowerCase();
-  return normalizedInput === "q" || normalizedInput === "x";
-};
+  const normalizedInput = input.trim().toLowerCase()
+  return normalizedInput === "q" || normalizedInput === "x"
+}

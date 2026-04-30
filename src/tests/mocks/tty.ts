@@ -1,48 +1,49 @@
-import { EventEmitter } from "node:events";
-import { render as inkRender, type Instance as InkInstance } from "ink";
-import type { ReactElement } from "react";
+import { EventEmitter } from "node:events"
+
+import { render as inkRender, type Instance as InkInstance } from "ink"
+import type { ReactElement } from "react"
 
 class Stdout extends EventEmitter {
   get columns() {
-    return 100;
+    return 100
   }
 
-  readonly frames: string[] = [];
-  private _lastFrame?: string;
+  readonly frames: string[] = []
+  private _lastFrame?: string
 
   write = (frame: string) => {
-    this.frames.push(frame);
-    this._lastFrame = frame;
-  };
+    this.frames.push(frame)
+    this._lastFrame = frame
+  }
 
-  lastFrame = () => this._lastFrame;
+  lastFrame = () => this._lastFrame
 }
 
 class Stderr extends EventEmitter {
-  readonly frames: string[] = [];
-  private _lastFrame?: string;
+  readonly frames: string[] = []
+  private _lastFrame?: string
 
   write = (frame: string) => {
-    this.frames.push(frame);
-    this._lastFrame = frame;
-  };
+    this.frames.push(frame)
+    this._lastFrame = frame
+  }
 
-  lastFrame = () => this._lastFrame;
+  lastFrame = () => this._lastFrame
 }
 
 class Stdin extends EventEmitter {
-  isTTY = true;
-  data: string | null = null;
+  isTTY = true
+  data: string | null = null
   constructor(options: { isTTY?: boolean } = {}) {
-    super();
-    this.isTTY = options.isTTY ?? true;
+    super()
+    this.isTTY = options.isTTY ?? true
   }
 
   write = (data: string) => {
-    this.data = data;
-    this.emit("readable");
-    this.emit("data", data);
-  };
+    this.data = data
+    this.emit("readable")
+    this.emit("data", data)
+  }
 
   setEncoding() {
     // Do nothing
@@ -69,29 +70,29 @@ class Stdin extends EventEmitter {
   }
 
   read: () => string | null = () => {
-    const { data } = this;
-    this.data = null;
-    return data;
-  };
+    const { data } = this
+    this.data = null
+    return data
+  }
 }
 
 type Instance = {
-  rerender: (tree: ReactElement) => void;
-  unmount: () => void;
-  cleanup: () => void;
-  stdout: Stdout;
-  stderr: Stderr;
-  stdin: Stdin;
-  frames: string[];
-  lastFrame: () => string | undefined;
-};
+  rerender: (tree: ReactElement) => void
+  unmount: () => void
+  cleanup: () => void
+  stdout: Stdout
+  stderr: Stderr
+  stdin: Stdin
+  frames: string[]
+  lastFrame: () => string | undefined
+}
 
-const instances: InkInstance[] = [];
+const instances: InkInstance[] = []
 
 export const render = (tree: ReactElement): Instance => {
-  const stdout = new Stdout();
-  const stderr = new Stderr();
-  const stdin = new Stdin();
+  const stdout = new Stdout()
+  const stderr = new Stderr()
+  const stdin = new Stdin()
 
   const instance = inkRender(tree, {
     stdout: stdout as any,
@@ -100,9 +101,9 @@ export const render = (tree: ReactElement): Instance => {
     debug: true,
     exitOnCtrlC: false,
     patchConsole: false,
-  });
+  })
 
-  instances.push(instance);
+  instances.push(instance)
 
   return {
     rerender: instance.rerender,
@@ -113,14 +114,14 @@ export const render = (tree: ReactElement): Instance => {
     stdin,
     frames: stdout.frames,
     lastFrame: stdout.lastFrame,
-  };
-};
+  }
+}
 
 export const cleanup = () => {
   for (const instance of instances) {
-    instance.unmount();
-    instance.cleanup();
+    instance.unmount()
+    instance.cleanup()
   }
 
-  instances.length = 0;
-};
+  instances.length = 0
+}
