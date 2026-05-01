@@ -2,6 +2,8 @@
   "dialect": "kysely-bun-sqlite",
   "outFile": "./src/db/types.ts",
   "url": "env(DATABASE_URL)",
+  "camelCase": true,
+  "singularize": true,
   "overrides": {
     "columns": {
       "clients.id": "Generated<number>",

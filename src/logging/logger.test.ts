@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 
-import { Logger, createLogger } from "./logger"
+import { createLogger, Logger } from "./logger"
 
 describe("Logger class", () => {
   it.each([

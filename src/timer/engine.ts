@@ -1,35 +1,35 @@
-import type { ActiveSessionSummary, ClientId, ProjectId, SessionId } from "../types"
+import type { ActiveSession } from "../db/repos/sessions"
 
 /**
  * Contract for timer operations.
  * TODO(AA-379): Implement business rules for single active session and pause/resume semantics.
  */
 export interface TimerEngine {
-  getActiveSession(): Promise<ActiveSessionSummary | null>
+  getActiveSession(): Promise<ActiveSession | null>
   startSession(input: StartSessionInput): Promise<StartSessionResult>
   stopSession(): Promise<StopSessionResult>
   switchSession(input: StartSessionInput): Promise<SwitchSessionResult>
 }
 
 export interface StartSessionInput {
-  clientId: ClientId
-  projectId: ProjectId
+  clientId: number
+  projectId: number
   note?: string
   tags?: string[]
   thresholdMinutes?: number
 }
 
 export interface StartSessionResult {
-  createdSessionId: SessionId
+  createdSessionId: number
 }
 
 export interface StopSessionResult {
-  stoppedSessionId: SessionId
+  stoppedSessionId: number
 }
 
 export interface SwitchSessionResult {
-  stoppedSessionId: SessionId
-  startedSessionId: SessionId
+  stoppedSessionId: number
+  startedSessionId: number
 }
 
 const notImplementedError = (methodName: string): Error => {
@@ -37,7 +37,7 @@ const notImplementedError = (methodName: string): Error => {
 }
 
 export class TimerEngineStub implements TimerEngine {
-  async getActiveSession(): Promise<ActiveSessionSummary | null> {
+  async getActiveSession(): Promise<ActiveSession | null> {
     // TODO(AA-379): Read current active session from persistence.
     return null
   }

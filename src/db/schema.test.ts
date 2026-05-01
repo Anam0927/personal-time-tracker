@@ -68,7 +68,7 @@ describe("schema validation", () => {
     // Insert a project referencing the client — should succeed
     const { insertId: projectId } = await db
       .insertInto("projects")
-      .values({ name: "TestProject", client_id: 1 })
+      .values({ name: "TestProject", clientId: 1 })
       .executeTakeFirst()
 
     expect(projectId).toBeDefined()
@@ -79,7 +79,7 @@ describe("schema validation", () => {
     // Attempt to insert a project with a client_id that doesn't exist
     const promise = db
       .insertInto("projects")
-      .values({ name: "OrphanProject", client_id: 999 })
+      .values({ name: "OrphanProject", clientId: 999 })
       .execute()
 
     // SQLite foreign key violation should throw with "FOREIGN KEY constraint failed"
@@ -93,7 +93,7 @@ describe("schema validation", () => {
     // Insert a project referencing the client
     const { insertId: projectId } = await db
       .insertInto("projects")
-      .values({ name: "ProjectForSetNull", client_id: 2 })
+      .values({ name: "ProjectForSetNull", clientId: 2 })
       .executeTakeFirst()
 
     expect(projectId).toBeDefined()
@@ -110,7 +110,7 @@ describe("schema validation", () => {
       .executeTakeFirst()
 
     expect(project).toBeDefined()
-    expect(project!.client_id).toBeNull()
+    expect(project!.clientId).toBeNull()
   })
 
   it("sets session.project_id to NULL when referenced project is deleted", async () => {
@@ -120,15 +120,15 @@ describe("schema validation", () => {
     // Insert a project referencing the client
     await db
       .insertInto("projects")
-      .values({ name: "ProjectForSessionSetNull", client_id: 3 })
+      .values({ name: "ProjectForSessionSetNull", clientId: 3 })
       .execute()
 
     // Insert a session referencing the project
     const { insertId: sessionId } = await db
       .insertInto("sessions")
       .values({
-        project_id: 1,
-        started_at: new Date().toISOString(),
+        projectId: 1,
+        startedAt: new Date().toISOString(),
         status: "active",
       })
       .executeTakeFirst()
@@ -147,7 +147,7 @@ describe("schema validation", () => {
       .executeTakeFirst()
 
     expect(session).toBeDefined()
-    expect(session!.project_id).toBeNull()
+    expect(session!.projectId).toBeNull()
 
     // Clean up: mark session as completed to free the active slot for subsequent tests
     await db.updateTable("sessions").set({ status: "completed" }).where("id", "=", sid).execute()
@@ -158,7 +158,7 @@ describe("schema validation", () => {
     const { insertId: sessionId } = await db
       .insertInto("sessions")
       .values({
-        started_at: new Date().toISOString(),
+        startedAt: new Date().toISOString(),
         status: "active",
       })
       .executeTakeFirst()
@@ -176,13 +176,13 @@ describe("schema validation", () => {
     const tid = Number(tagId)
 
     // Join them in session_tags
-    await db.insertInto("session_tags").values({ session_id: sid, tag_id: tid }).execute()
+    await db.insertInto("sessionTags").values({ sessionId: sid, tagId: tid }).execute()
 
     // Verify the join exists
     const joinBefore = await db
-      .selectFrom("session_tags")
+      .selectFrom("sessionTags")
       .selectAll()
-      .where("session_id", "=", sid)
+      .where("sessionId", "=", sid)
       .execute()
 
     expect(joinBefore).toHaveLength(1)
@@ -192,9 +192,9 @@ describe("schema validation", () => {
 
     // Verify the join is gone
     const joinAfter = await db
-      .selectFrom("session_tags")
+      .selectFrom("sessionTags")
       .selectAll()
-      .where("session_id", "=", sid)
+      .where("sessionId", "=", sid)
       .execute()
 
     expect(joinAfter).toHaveLength(0)
@@ -205,7 +205,7 @@ describe("schema validation", () => {
     const { insertId: sessionId } = await db
       .insertInto("sessions")
       .values({
-        started_at: new Date().toISOString(),
+        startedAt: new Date().toISOString(),
         status: "active",
       })
       .executeTakeFirst()
@@ -215,20 +215,20 @@ describe("schema validation", () => {
 
     // Insert a pause event
     await db
-      .insertInto("pause_events")
+      .insertInto("pauseEvents")
       .values({
-        session_id: sid,
-        paused_at: new Date().toISOString(),
+        sessionId: sid,
+        pausedAt: new Date().toISOString(),
       })
       .execute()
 
     // Insert a notification event
     await db
-      .insertInto("notification_events")
+      .insertInto("notificationEvents")
       .values({
-        session_id: sid,
-        threshold_minutes: 30,
-        threshold_reached_at: new Date().toISOString(),
+        sessionId: sid,
+        thresholdMinutes: 30,
+        thresholdReachedAt: new Date().toISOString(),
       })
       .execute()
 
@@ -237,18 +237,18 @@ describe("schema validation", () => {
 
     // Pause events should be gone
     const pauseEvents = await db
-      .selectFrom("pause_events")
+      .selectFrom("pauseEvents")
       .selectAll()
-      .where("session_id", "=", sid)
+      .where("sessionId", "=", sid)
       .execute()
 
     expect(pauseEvents).toHaveLength(0)
 
     // Notification events should be gone
     const notifEvents = await db
-      .selectFrom("notification_events")
+      .selectFrom("notificationEvents")
       .selectAll()
-      .where("session_id", "=", sid)
+      .where("sessionId", "=", sid)
       .execute()
 
     expect(notifEvents).toHaveLength(0)
@@ -259,7 +259,7 @@ describe("schema validation", () => {
     const promise = db
       .insertInto("sessions")
       .values({
-        started_at: new Date().toISOString(),
+        startedAt: new Date().toISOString(),
         status: "invalid_status" as any,
       })
       .execute()
@@ -269,22 +269,26 @@ describe("schema validation", () => {
   })
 
   it.each(["active", "paused", "completed"] as const)("accepts status '%s'", async (status) => {
-      const result = await db
-        .insertInto("sessions")
-        .values({
-          started_at: new Date().toISOString(),
-          status,
-        })
-        .executeTakeFirst()
+    const result = await db
+      .insertInto("sessions")
+      .values({
+        startedAt: new Date().toISOString(),
+        status,
+      })
+      .executeTakeFirst()
 
-      expect(result.insertId).toBeDefined()
-      expect(Number(result.insertId)).toBeGreaterThan(0)
+    expect(result.insertId).toBeDefined()
+    expect(Number(result.insertId)).toBeGreaterThan(0)
 
-      // Clean up active sessions to avoid blocking subsequent tests with the single-active constraint
-      if (status === "active") {
-        await db.updateTable("sessions").set({ status: "completed" }).where("id", "=", Number(result.insertId)).execute()
-      }
-    })
+    // Clean up active sessions to avoid blocking subsequent tests with the single-active constraint
+    if (status === "active") {
+      await db
+        .updateTable("sessions")
+        .set({ status: "completed" })
+        .where("id", "=", Number(result.insertId))
+        .execute()
+    }
+  })
 
   it("has indexes on sessions, session_tags, pause_events, notification_events", async () => {
     const result = await sql<{ name: string }>`
@@ -324,7 +328,7 @@ describe("schema validation", () => {
       const result = await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()
@@ -338,7 +342,7 @@ describe("schema validation", () => {
       await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()
@@ -347,7 +351,7 @@ describe("schema validation", () => {
       const promise = db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .execute()
@@ -360,7 +364,7 @@ describe("schema validation", () => {
       await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()
@@ -369,7 +373,7 @@ describe("schema validation", () => {
       const result = await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "paused",
         })
         .executeTakeFirst()
@@ -382,7 +386,7 @@ describe("schema validation", () => {
       await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()
@@ -391,7 +395,7 @@ describe("schema validation", () => {
       const result = await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "completed",
         })
         .executeTakeFirst()
@@ -404,19 +408,23 @@ describe("schema validation", () => {
       await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()
 
       // Transition it to paused
-      await db.updateTable("sessions").set({ status: "paused" }).where("status", "=", "active").execute()
+      await db
+        .updateTable("sessions")
+        .set({ status: "paused" })
+        .where("status", "=", "active")
+        .execute()
 
       // Now a new active session should succeed
       const result = await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()
@@ -429,7 +437,7 @@ describe("schema validation", () => {
       const { insertId } = await db
         .insertInto("sessions")
         .values({
-          started_at: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
           status: "active",
         })
         .executeTakeFirst()

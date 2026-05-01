@@ -1,5 +1,6 @@
-import { initDb } from "./src/db/db"
 import { defineConfig } from "kysely-ctl"
+
+import { initDb } from "./src/db/db"
 
 export default defineConfig({
   kysely: initDb(),

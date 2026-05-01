@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite"
 
-import { Kysely } from "kysely"
+import { CamelCasePlugin, Kysely } from "kysely"
 import { BunSqliteDialect } from "kysely-bun-sqlite"
 
 import { getDbPath, ensureDbDir } from "./path"
@@ -20,6 +20,7 @@ export function initDb(): Kysely<DB> {
     dialect: new BunSqliteDialect({
       database: bunDb,
     }),
+    plugins: [new CamelCasePlugin()],
   })
 
   return _db

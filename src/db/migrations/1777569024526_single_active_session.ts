@@ -11,8 +11,5 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await db.schema
-    .dropIndex("idx_sessions_single_active")
-    .ifExists()
-    .execute()
+  await db.schema.dropIndex("idx_sessions_single_active").ifExists().execute()
 }

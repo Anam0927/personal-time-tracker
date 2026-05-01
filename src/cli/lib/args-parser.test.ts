@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, beforeAll } from "bun:test"
+
 import type { ParsedCliCommand } from "./parser.types"
 
 type ParseCliCommand = (argv: string[]) => ParsedCliCommand | null

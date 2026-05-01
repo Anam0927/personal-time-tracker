@@ -11,78 +11,78 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
 
 export interface AppState {
   key: string;
-  updated_at: string;
+  updatedAt: string;
   value: string | null;
 }
 
-export interface Clients {
+export interface Client {
   archived: Generated<number>;
-  created_at: Generated<string>;
+  createdAt: Generated<string>;
   id: Generated<number>;
   name: string;
-  updated_at: Generated<string>;
+  updatedAt: Generated<string>;
 }
 
-export interface NotificationEvents {
-  created_at: Generated<string>;
+export interface NotificationEvent {
+  createdAt: Generated<string>;
   id: Generated<number>;
-  notification_sent_at: string | null;
-  notification_type: string | null;
-  session_id: number;
-  threshold_minutes: number;
-  threshold_reached_at: string;
+  notificationSentAt: string | null;
+  notificationType: string | null;
+  sessionId: number;
+  thresholdMinutes: number;
+  thresholdReachedAt: string;
 }
 
-export interface PauseEvents {
-  created_at: Generated<string>;
+export interface PauseEvent {
+  createdAt: Generated<string>;
   id: Generated<number>;
-  paused_at: string;
+  pausedAt: string;
   reason: string | null;
-  resumed_at: string | null;
-  session_id: number;
+  resumedAt: string | null;
+  sessionId: number;
 }
 
-export interface Projects {
+export interface Project {
   archived: Generated<number>;
-  client_id: number | null;
+  clientId: number | null;
   color: string | null;
-  created_at: Generated<string>;
+  createdAt: Generated<string>;
   description: string | null;
   id: Generated<number>;
   name: string;
-  updated_at: Generated<string>;
+  updatedAt: Generated<string>;
 }
 
-export interface Sessions {
-  created_at: Generated<string>;
-  ended_at: string | null;
+export interface Session {
+  createdAt: Generated<string>;
+  endedAt: string | null;
   id: Generated<number>;
   note: string | null;
-  project_id: number | null;
-  started_at: string;
+  projectId: number | null;
+  startedAt: string;
   status: "active" | "paused" | "completed";
-  threshold_minutes: number | null;
+  thresholdMinutes: number | null;
 }
 
-export interface SessionTags {
-  created_at: Generated<string>;
-  session_id: number;
-  tag_id: number;
+export interface SessionTag {
+  createdAt: Generated<string>;
+  sessionId: number;
+  tagId: number;
 }
 
-export interface Tags {
-  created_at: Generated<string>;
+export interface Tag {
+  createdAt: Generated<string>;
   id: Generated<number>;
   name: string;
 }
 
 export interface DB {
-  app_state: AppState;
-  clients: Clients;
-  notification_events: NotificationEvents;
-  pause_events: PauseEvents;
-  projects: Projects;
-  session_tags: SessionTags;
-  sessions: Sessions;
-  tags: Tags;
+  appState: AppState;
+  clients: Client;
+  notificationEvents: NotificationEvent;
+  pauseEvents: PauseEvent;
+  projects: Project;
+  sessions: Session;
+  sessionTags: SessionTag;
+  tags: Tag;
 }

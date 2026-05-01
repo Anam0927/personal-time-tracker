@@ -1,8 +1,8 @@
 import { CliApp } from "./cli/app"
 import { parseCliCommand } from "./cli/lib/args-parser"
 import { loadConfig } from "./config/load"
-import { createLogger } from "./logging/logger"
 import { initDb } from "./db/db"
+import { createLogger } from "./logging/logger"
 import { InkTuiApp } from "./tui/app"
 
 type CommanderBootstrapError = Error & {
