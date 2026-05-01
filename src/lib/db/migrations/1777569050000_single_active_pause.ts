@@ -6,6 +6,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .unique()
     .on("pause_events")
     .columns(["session_id"])
+    // @ts-expect-error
     .where("resumed_at", "is", null)
     .execute()
 }

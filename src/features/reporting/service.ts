@@ -1,4 +1,5 @@
-import type { ReportResult } from "../types"
+import type { ReportResult } from "@/types"
+
 import type { ReportScope } from "./schemas"
 
 /**

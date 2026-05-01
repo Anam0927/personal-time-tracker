@@ -1,8 +1,8 @@
 import type { Selectable } from "kysely"
 
-import { NotFoundError } from "../lib/errors"
-import type { PauseEvent } from "../types"
-import { BaseRepository } from "./base"
+import { BaseRepository } from "@/lib/db/base-repo"
+import { NotFoundError } from "@/lib/db/errors"
+import type { PauseEvent } from "@/lib/db/types"
 
 export interface PauseEventsRepository {
   create({

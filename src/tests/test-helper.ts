@@ -4,7 +4,7 @@ import path from "node:path"
 
 import type { Kysely } from "kysely"
 
-import type { DB } from "@/db/types"
+import type { DB } from "@/lib/db/types"
 
 export interface TestContext {
   db: Kysely<DB>
@@ -21,10 +21,10 @@ export async function createTestDb(): Promise<TestContext> {
   const { mock } = await import("bun:test")
   mock.module("xdg-basedir", () => ({ xdgData: testDir }))
 
-  const migrateModule = await import("@/db/migrate")
+  const migrateModule = await import("@/lib/db/migrate")
   await migrateModule.runMigrations()
 
-  const dbModule = await import("@/db/db")
+  const dbModule = await import("@/lib/db/db")
   const db = dbModule.initDb()
 
   const cleanup = () => {

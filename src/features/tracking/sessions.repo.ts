@@ -1,9 +1,9 @@
 import type { Selectable } from "kysely"
 
-import { NotFoundError } from "../lib/errors"
-import { calculateElapsedMinutes } from "../lib/utils"
-import type { Session } from "../types"
-import { BaseRepository } from "./base"
+import { BaseRepository } from "@/lib/db/base-repo"
+import { NotFoundError } from "@/lib/db/errors"
+import { calculateElapsedMinutes } from "@/lib/db/lib/utils"
+import type { Session } from "@/lib/db/types"
 
 export type ActiveSession = Selectable<Session> & {
   projectName: string | null

@@ -1,9 +1,9 @@
-import { CliApp } from "./cli/app"
-import { parseCliCommand } from "./cli/lib/args-parser"
-import { loadConfig } from "./config/load"
-import { initDb } from "./db/db"
-import { createLogger } from "./logging/logger"
-import { InkTuiApp } from "./tui/app"
+import { CliApp } from "./apps/cli/app"
+import { parseCliCommand } from "./apps/cli/lib/args-parser"
+import { InkTuiApp } from "./apps/tui/app"
+import { loadConfig } from "./lib/config/load"
+import { initDb } from "./lib/db/db"
+import { createLogger } from "./lib/logging/logger"
 
 type CommanderBootstrapError = Error & {
   code?: string
@@ -36,7 +36,7 @@ const main = async (): Promise<void> => {
     }
 
     initDb()
-    const { migrateToLatest } = await import("./db/db")
+    const { migrateToLatest } = await import("./lib/db/db")
     await migrateToLatest()
 
     const command = parseResult.command

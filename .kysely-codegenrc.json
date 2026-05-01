@@ -1,6 +1,6 @@
 {
   "dialect": "kysely-bun-sqlite",
-  "outFile": "./src/db/types.ts",
+  "outFile": "./src/lib/db/types.ts",
   "url": "env(DATABASE_URL)",
   "camelCase": true,
   "singularize": true,

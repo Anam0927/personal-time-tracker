@@ -1,6 +1,7 @@
-import type { CliCommand } from "@/cli/lib/parser.types"
-import type { Config } from "@/config/schemas"
-import type { Logger } from "@/logging/logger"
+import type { Config } from "@/lib/config/schemas"
+import type { Logger } from "@/lib/logging/logger"
+
+import type { CliCommand } from "./lib/parser.types"
 
 export class CliApp {
   private config: Config

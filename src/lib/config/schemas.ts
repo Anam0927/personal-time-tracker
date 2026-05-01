@@ -1,6 +1,6 @@
 import z from "zod"
 
-import { logLevel } from "@/logging/schemas"
+import { logLevel } from "../logging/schemas"
 
 const remindersConfigSchema = z.object({
   repeatIntervalInMinutes: z.int().positive().default(5),

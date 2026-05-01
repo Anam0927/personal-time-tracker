@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 
-import type { ParsedCliCommand } from "./cli/lib/parser.types"
+import type { ParsedCliCommand } from "./apps/cli/lib/parser.types"
 
 const parseCliCommandMock = mock((_argv: string[]): ParsedCliCommand | null => null)
 
@@ -26,11 +26,11 @@ describe("main bootstrap", () => {
 
     // Mock only at system boundaries:
     // 1. args-parser — we need to control parser return for branch coverage
-    mock.module("./cli/lib/args-parser", () => ({
+    mock.module("./apps/cli/lib/args-parser", () => ({
       parseCliCommand: parseCliCommandMock,
     }))
     // 2. TUI — system boundary (ink rendering can't run in test environment)
-    mock.module("./tui/app", () => ({
+    mock.module("./apps/tui/app", () => ({
       InkTuiApp: InkTuiAppMock,
       TuiShell: () => "Time tracker TUI - Press 'q', 'x', or 'Esc' to exit.",
     }))

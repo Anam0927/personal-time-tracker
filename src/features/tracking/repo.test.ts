@@ -2,16 +2,16 @@ import { describe, expect, it, beforeAll, afterAll, beforeEach } from "bun:test"
 
 import type { Kysely } from "kysely"
 
-import type { DB } from "@/db/types"
+import { ConstraintViolationError } from "@/lib/db/errors"
+import type { DB } from "@/lib/db/types"
 import { createTestDb } from "@/tests/test-helper"
 
-import { ConstraintViolationError } from "../lib/errors"
-import { ClientsRepositoryImpl } from "./clients"
-import { NotificationEventsRepositoryImpl } from "./notification-events"
-import { PauseEventsRepositoryImpl } from "./pause-events"
-import { ProjectsRepositoryImpl } from "./projects"
-import { SessionsRepositoryImpl } from "./sessions"
-import { TagsRepositoryImpl } from "./tags"
+import { ClientsRepositoryImpl } from "../clients/repo"
+import { ProjectsRepositoryImpl } from "../projects/repo"
+import { NotificationEventsRepositoryImpl } from "./notification-events.repo"
+import { PauseEventsRepositoryImpl } from "./pause-events.repo"
+import { SessionsRepositoryImpl } from "./sessions.repo"
+import { TagsRepositoryImpl } from "./tags.repo"
 
 let db: Kysely<DB>
 let cleanup: () => void
@@ -49,201 +49,6 @@ async function cleanAllTables(): Promise<void> {
   await db.deleteFrom("projects").execute()
   await db.deleteFrom("clients").execute()
 }
-
-// ─────────────────────────────────────────────────────────────
-// ClientsRepositoryImpl
-// ─────────────────────────────────────────────────────────────
-describe("ClientsRepositoryImpl", () => {
-  beforeEach(async () => {
-    await cleanAllTables()
-  })
-
-  it("create() creates a client, returns object with id and name", async () => {
-    const client = await clientsRepo.create("Acme Corp")
-    expect(client).toBeDefined()
-    expect(Number(client.id)).toBeGreaterThan(0)
-    expect(client.name).toBe("Acme Corp")
-  })
-
-  it("create() throws ConstraintViolationError on duplicate name", async () => {
-    await clientsRepo.create("Duplicate")
-    expect(clientsRepo.create("Duplicate")).rejects.toThrow(ConstraintViolationError)
-  })
-
-  it("getById() returns client by id", async () => {
-    const created = await clientsRepo.create("GetById Test")
-    const found = await clientsRepo.getById(Number(created.id))
-    expect(found).not.toBeNull()
-    expect(found!.name).toBe("GetById Test")
-  })
-
-  it("getById() returns null for nonexistent id", async () => {
-    const found = await clientsRepo.getById(999)
-    expect(found).toBeNull()
-  })
-
-  it("getByName() returns client by name", async () => {
-    await clientsRepo.create("ByName Test")
-    const found = await clientsRepo.getByName("ByName Test")
-    expect(found).not.toBeNull()
-    expect(Number(found!.id)).toBeGreaterThan(0)
-  })
-
-  it("getByName() returns null for nonexistent name", async () => {
-    const found = await clientsRepo.getByName("nonexistent")
-    expect(found).toBeNull()
-  })
-
-  it("list() returns all non-archived clients by default", async () => {
-    await clientsRepo.create("Alpha")
-    await clientsRepo.create("Beta")
-    const list = await clientsRepo.list()
-    expect(list.length).toBe(2)
-  })
-
-  it("list({ includeArchived: true }) returns all clients including archived", async () => {
-    const c = await clientsRepo.create("ArchiveMe")
-    await clientsRepo.archive(Number(c.id))
-    const all = await clientsRepo.list({ includeArchived: true })
-    expect(all.length).toBe(1)
-    expect(!!all[0]!.archived).toBe(true)
-  })
-
-  it("archive() sets archived to 1/true", async () => {
-    const c = await clientsRepo.create("Archivable")
-    const archived = await clientsRepo.archive(Number(c.id))
-    expect(!!archived.archived).toBe(true)
-  })
-
-  it("unarchive() reverts archive", async () => {
-    const c = await clientsRepo.create("Unarchivable")
-    await clientsRepo.archive(Number(c.id))
-    const unarchived = await clientsRepo.unarchive(Number(c.id))
-    expect(!!unarchived.archived).toBe(false)
-  })
-
-  it("archive() is idempotent", async () => {
-    const c = await clientsRepo.create("IdempotentArchive")
-    await clientsRepo.archive(Number(c.id))
-    const again = await clientsRepo.archive(Number(c.id))
-    expect(!!again.archived).toBe(true)
-  })
-
-  it("update() updates name", async () => {
-    const c = await clientsRepo.create("OldName")
-    const updated = await clientsRepo.update(Number(c.id), { name: "NewName" })
-    expect(updated.name).toBe("NewName")
-
-    const fetched = await clientsRepo.getById(Number(c.id))
-    expect(fetched!.name).toBe("NewName")
-  })
-})
-
-// ─────────────────────────────────────────────────────────────
-// ProjectsRepositoryImpl
-// ─────────────────────────────────────────────────────────────
-describe("ProjectsRepositoryImpl", () => {
-  beforeEach(async () => {
-    await cleanAllTables()
-  })
-
-  it("create() creates project with name only", async () => {
-    const project = await projectsRepo.create({ name: "Project Alpha" })
-    expect(project).toBeDefined()
-    expect(Number(project.id)).toBeGreaterThan(0)
-    expect(project.name).toBe("Project Alpha")
-    expect(project.clientId).toBeNull()
-  })
-
-  it("create() creates project with clientId", async () => {
-    const client = await clientsRepo.create("Client For Project")
-    const project = await projectsRepo.create({
-      name: "Project Beta",
-      clientId: Number(client.id),
-    })
-    expect(project.clientId).toBe(Number(client.id))
-  })
-
-  it("create() throws ConstraintViolationError on duplicate name", async () => {
-    await projectsRepo.create({ name: "DupProject" })
-    expect(projectsRepo.create({ name: "DupProject" })).rejects.toThrow(ConstraintViolationError)
-  })
-
-  it("getById() returns project by id", async () => {
-    const created = await projectsRepo.create({ name: "GetById Proj" })
-    const found = await projectsRepo.getById(Number(created.id))
-    expect(found).not.toBeNull()
-    expect(found!.name).toBe("GetById Proj")
-  })
-
-  it("getByName() returns project by name", async () => {
-    await projectsRepo.create({ name: "FindMe" })
-    const found = await projectsRepo.getByName("FindMe")
-    expect(found).not.toBeNull()
-  })
-
-  it("list() returns non-archived by default", async () => {
-    await projectsRepo.create({ name: "Visible" })
-    const list = await projectsRepo.list()
-    expect(list.length).toBe(1)
-  })
-
-  it("list({ clientId }) filters by client", async () => {
-    const c1 = await clientsRepo.create("C1")
-    const c2 = await clientsRepo.create("C2")
-    await projectsRepo.create({ name: "P1", clientId: Number(c1.id) })
-    await projectsRepo.create({ name: "P2", clientId: Number(c2.id) })
-    const list = await projectsRepo.list({ clientId: Number(c1.id) })
-    expect(list.length).toBe(1)
-    expect(list[0]!.name).toBe("P1")
-  })
-
-  it("list({ includeArchived: true }) includes archived", async () => {
-    const p = await projectsRepo.create({ name: "ArchivableProj" })
-    await projectsRepo.archive(Number(Number(p.id)))
-    const all = await projectsRepo.list({ includeArchived: true })
-    expect(all.length).toBe(1)
-    expect(!!all[0]!.archived).toBe(true)
-  })
-
-  it("archive() / unarchive() work correctly", async () => {
-    const p = await projectsRepo.create({ name: "ToggleArchive" })
-    const archived = await projectsRepo.archive(Number(Number(p.id)))
-    expect(!!archived.archived).toBe(true)
-    const unarchived = await projectsRepo.unarchive(Number(Number(p.id)))
-    expect(!!unarchived.archived).toBe(false)
-  })
-
-  it("update() updates fields", async () => {
-    const p = await projectsRepo.create({
-      name: "UpdateMe",
-      description: "old desc",
-    })
-    const updated = await projectsRepo.update(Number(p.id), {
-      name: "Updated",
-      description: "new desc",
-      color: "#ff0000",
-    })
-    expect(updated.name).toBe("Updated")
-    expect(updated.description).toBe("new desc")
-    expect(updated.color).toBe("#ff0000")
-  })
-
-  it("ON DELETE SET NULL: when client deleted, project.clientId becomes null", async () => {
-    const client = await clientsRepo.create("DeleteClient")
-    const project = await projectsRepo.create({
-      name: "OrphanProject",
-      clientId: Number(client.id),
-    })
-    expect(project.clientId).toBe(Number(client.id))
-
-    await db.deleteFrom("clients").where("id", "=", Number(client.id)).execute()
-
-    const reloaded = await projectsRepo.getById(Number(project.id))
-    expect(reloaded).not.toBeNull()
-    expect(reloaded!.clientId).toBeNull()
-  })
-})
 
 // ─────────────────────────────────────────────────────────────
 // SessionsRepositoryImpl

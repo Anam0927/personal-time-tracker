@@ -1,10 +1,10 @@
 import { defineConfig } from "kysely-ctl"
 
-import { initDb } from "./src/db/db"
+import { initDb } from "@/lib/db/db"
 
 export default defineConfig({
   kysely: initDb(),
   migrations: {
-    migrationFolder: "src/db/migrations",
+    migrationFolder: "src/lib/db/migrations",
   },
 })

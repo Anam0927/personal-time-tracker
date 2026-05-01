@@ -1,9 +1,8 @@
 import { Command, InvalidOptionArgumentError, Option } from "commander"
 import z from "zod"
 
-import { logLevel } from "@/logging/schemas"
-
-import { reportScope } from "../reporting/schemas"
+import { reportScope } from "@/features/reporting/schemas"
+import { logLevel } from "@/lib/logging/schemas"
 
 function toLowerString(value: string) {
   const parseResult = z.string().trim().nonempty().toLowerCase().safeParse(value)

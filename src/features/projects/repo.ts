@@ -1,9 +1,9 @@
 import type { Selectable } from "kysely"
 import type { Updateable } from "kysely"
 
-import { NotFoundError, ConstraintViolationError } from "../lib/errors"
-import type { Project } from "../types"
-import { BaseRepository } from "./base"
+import { BaseRepository } from "@/lib/db/base-repo"
+import { NotFoundError, ConstraintViolationError } from "@/lib/db/errors"
+import type { Project } from "@/lib/db/types"
 
 export interface ProjectsRepository {
   create(data: {

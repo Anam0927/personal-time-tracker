@@ -1,5 +1,5 @@
-import type { LogLevel } from "@/logging/schemas"
-import type { ReportScope } from "@/reporting/schemas"
+import type { ReportScope } from "@/features/reporting/schemas"
+import type { LogLevel } from "@/lib/logging/schemas"
 
 import { createCommandProgram } from "../commands"
 import type { ParsedCliCommand } from "./parser.types"

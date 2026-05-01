@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from "bun:test"
 
-import { cleanup, render } from "../tests/mocks/tty"
+import { cleanup, render } from "@/tests/mocks/tty"
 
 const bunPath = process.execPath
 

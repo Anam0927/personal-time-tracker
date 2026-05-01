@@ -1,8 +1,8 @@
 import type { Selectable } from "kysely"
 
-import { NotFoundError, ConstraintViolationError } from "../lib/errors"
-import type { Client } from "../types"
-import { BaseRepository } from "./base"
+import { BaseRepository } from "@/lib/db/base-repo"
+import { NotFoundError, ConstraintViolationError } from "@/lib/db/errors"
+import type { Client } from "@/lib/db/types"
 
 interface ClientsRepository {
   create(name: string): Promise<Selectable<Client>>

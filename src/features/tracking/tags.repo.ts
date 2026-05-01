@@ -1,8 +1,8 @@
 import type { Selectable } from "kysely"
 
-import { ConstraintViolationError } from "../lib/errors"
-import type { Tag } from "../types"
-import { BaseRepository } from "./base"
+import { BaseRepository } from "@/lib/db/base-repo"
+import { ConstraintViolationError } from "@/lib/db/errors"
+import type { Tag } from "@/lib/db/types"
 
 export interface TagsRepository {
   create(name: string): Promise<Selectable<Tag>>

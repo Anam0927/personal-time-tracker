@@ -4,8 +4,7 @@ import * as path from "node:path"
 import { cosmiconfig } from "cosmiconfig"
 import { xdgConfig } from "xdg-basedir"
 
-import type { LogLevel } from "@/logging/schemas"
-
+import type { LogLevel } from "../logging/schemas"
 import { configSchema, type Config } from "./schemas"
 
 const MODULE_NAME = "time-tracker"
