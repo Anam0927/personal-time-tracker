@@ -4,7 +4,7 @@ import { BaseRepository } from "@/lib/db/base-repo"
 import { NotFoundError, ConstraintViolationError } from "@/lib/db/errors"
 import type { Client } from "@/lib/db/types"
 
-interface ClientsRepository {
+export interface ClientsRepository {
   create(name: string): Promise<Selectable<Client>>
   getById(id: number): Promise<Selectable<Client> | null>
   getByName(name: string): Promise<Selectable<Client> | null>

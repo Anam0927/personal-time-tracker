@@ -36,6 +36,7 @@ export interface SessionsRepository {
     sessionId: number
     minutes: number
   }): Promise<Selectable<Session>>
+  complete(data: { sessionId: number; endedAt: string }): Promise<Selectable<Session>>
   setEndedAt({
     sessionId,
     endedAt,
@@ -156,6 +157,24 @@ export class SessionsRepositoryImpl extends BaseRepository implements SessionsRe
     return result
   }
 
+  async complete(data: { sessionId: number; endedAt: string }): Promise<Selectable<Session>> {
+    const result = await this.db
+      .updateTable("sessions")
+      .set({
+        endedAt: data.endedAt,
+        status: "completed",
+      })
+      .where("id", "=", data.sessionId)
+      .returningAll()
+      .executeTakeFirst()
+
+    if (!result) {
+      throw new NotFoundError("Session", data.sessionId)
+    }
+
+    return result
+  }
+
   async setEndedAt({
     sessionId,
     endedAt,
@@ -205,7 +224,9 @@ export class SessionsRepositoryImpl extends BaseRepository implements SessionsRe
       .limit(1)
       .executeTakeFirst()
 
-    if (!row) return null
+    if (!row) {
+      return null
+    }
 
     const pauseEvents = await this.db
       .selectFrom("pauseEvents")
