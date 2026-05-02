@@ -16,6 +16,18 @@ function toLowerString(value: string) {
   return parseResult.data
 }
 
+function tagsParser(value: string, previous: string[] | undefined) {
+  const parseResult = z.string().trim().toLowerCase().nonempty().safeParse(value)
+
+  if (parseResult.error) {
+    throw new InvalidOptionArgumentError(
+      z.treeifyError(parseResult.error).errors?.[0] || "Invalid tag argument",
+    )
+  }
+
+  return [...(previous ?? []), parseResult.data]
+}
+
 export const createCommandProgram = (): Command => {
   const commandProgram = new Command()
 
@@ -36,6 +48,7 @@ export const createCommandProgram = (): Command => {
     .description("Start a new timer for a client and project.")
     .requiredOption("-c, --client <client>", "Client name", toLowerString)
     .requiredOption("-p, --project <project>", "Project name", toLowerString)
+    .option("-t, --tag <tag>", "Tag name (repeatable)", tagsParser, [])
 
   commandProgram.command("stop").description("Stop the active timer.")
 
@@ -44,6 +57,7 @@ export const createCommandProgram = (): Command => {
     .description("Switch to a different client and project.")
     .requiredOption("-c, --client <client>", "Client name", toLowerString)
     .requiredOption("-p, --project <project>", "Project name", toLowerString)
+    .option("-t, --tag <tag>", "Tag name (repeatable)", tagsParser, [])
 
   commandProgram.command("status").description("Show the status of the active timer.")
 
@@ -55,6 +69,11 @@ export const createCommandProgram = (): Command => {
         .choices(reportScope.options)
         .default("today"),
     )
+
+  commandProgram
+    .command("update-tags")
+    .description("Update tags on the active session.")
+    .requiredOption("-t, --tag <tag>", "Tag name (repeatable)", tagsParser)
 
   commandProgram.command("tui").description("Launch the interactive TUI.")
 

@@ -2,16 +2,32 @@ import type { Kysely, Selectable } from "kysely"
 
 import { ClientsRepositoryImpl } from "@/features/clients/repo"
 import { ProjectsRepositoryImpl } from "@/features/projects/repo"
-import type { Client, DB, Project } from "@/lib/db/types"
+import { ConstraintViolationError } from "@/lib/db/errors"
+import type { Client, DB, Project, Tag } from "@/lib/db/types"
 
 import type { PauseEventsRepository } from "./pause-events.repo"
 import { PauseEventsRepositoryImpl } from "./pause-events.repo"
 import type { ActiveSession } from "./sessions.repo"
 import { SessionsRepositoryImpl } from "./sessions.repo"
 import type { SessionStatus, TransitionResult } from "./state-machine"
+import type { TagsRepository } from "./tags.repo"
+import { TagsRepositoryImpl } from "./tags.repo"
+
+class TagResolutionError extends Error {
+  constructor(public readonly tagNames: string[]) {
+    super("Tag resolution failed")
+    this.name = "TagResolutionError"
+  }
+}
 
 export type StartResult =
-  | { variant: "started"; sessionId: number; clientName: string; projectName: string }
+  | {
+      variant: "started"
+      sessionId: number
+      clientName: string
+      projectName: string
+      tags: string[]
+    }
   | { variant: "sameActive"; session: ActiveSession }
   | {
       variant: "conflict"
@@ -23,6 +39,7 @@ export type StartResult =
   | { variant: "projectNotFound"; name: string; clientName: string }
   | { variant: "clientArchived"; name: string }
   | { variant: "projectArchived"; name: string }
+  | { variant: "tagResolutionFailed"; errors: string[] }
 
 type TransitionFailedResult = {
   variant: "transitionFailed"
@@ -43,6 +60,7 @@ export type SwitchResult =
       newSessionId: number
       clientName: string
       projectName: string
+      tags: string[]
     }
   | { variant: "noActiveToSwitch" }
   | TransitionFailedResult
@@ -50,6 +68,12 @@ export type SwitchResult =
   | { variant: "projectNotFound"; name: string; clientName: string }
   | { variant: "clientArchived"; name: string }
   | { variant: "projectArchived"; name: string }
+  | { variant: "tagResolutionFailed"; errors: string[] }
+
+export type UpdateTagsResult =
+  | { variant: "updated"; tags: string[] }
+  | { variant: "sessionNotFound" }
+  | { variant: "tagResolutionFailed"; errors: string[] }
 
 export interface TimerService {
   start(params: {
@@ -57,11 +81,19 @@ export interface TimerService {
     projectName: string
     note?: string
     thresholdMinutes?: number
+    tags?: string[]
   }): Promise<StartResult>
 
   stop(): Promise<StopResult>
 
-  switch(params: { clientName: string; projectName: string; note?: string }): Promise<SwitchResult>
+  switch(params: {
+    clientName: string
+    projectName: string
+    note?: string
+    tags?: string[]
+  }): Promise<SwitchResult>
+
+  updateTags(sessionId: number, tagNames: string[]): Promise<UpdateTagsResult>
 }
 
 export class TimerServiceImpl implements TimerService {
@@ -80,6 +112,7 @@ export class TimerServiceImpl implements TimerService {
     projectName: string
     note?: string
     thresholdMinutes?: number
+    tags?: string[]
   }): Promise<StartResult> {
     const resolved = await this.resolveClientProject(params.clientName, params.projectName)
     if (!resolved.ok) {
@@ -107,19 +140,38 @@ export class TimerServiceImpl implements TimerService {
       }
     }
 
-    const session = await this.sessionsRepo.create({
-      status: "active",
-      startedAt: new Date().toISOString(),
-      projectId: resolved.project.id,
-      note: params.note ?? null,
-      thresholdMinutes: params.thresholdMinutes ?? null,
-    })
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const sessionsRepo = new SessionsRepositoryImpl(tx)
+        const tagsRepo = new TagsRepositoryImpl(tx)
 
-    return {
-      variant: "started",
-      sessionId: session.id,
-      clientName: resolved.client.name,
-      projectName: resolved.project.name,
+        const session = await sessionsRepo.create({
+          status: "active",
+          startedAt: new Date().toISOString(),
+          projectId: resolved.project.id,
+          note: params.note ?? null,
+          thresholdMinutes: params.thresholdMinutes ?? null,
+        })
+
+        const tagNames = await this.associateTagsWithSession(
+          params.tags ?? [],
+          session.id,
+          tagsRepo,
+        )
+
+        return {
+          variant: "started" as const,
+          sessionId: session.id,
+          clientName: resolved.client.name,
+          projectName: resolved.project.name,
+          tags: tagNames,
+        }
+      })
+    } catch (error) {
+      if (error instanceof TagResolutionError) {
+        return { variant: "tagResolutionFailed", errors: error.tagNames }
+      }
+      throw error
     }
   }
 
@@ -157,6 +209,7 @@ export class TimerServiceImpl implements TimerService {
     clientName: string
     projectName: string
     note?: string
+    tags?: string[]
   }): Promise<SwitchResult> {
     const resolved = await this.resolveClientProject(params.clientName, params.projectName)
     if (!resolved.ok) {
@@ -168,37 +221,120 @@ export class TimerServiceImpl implements TimerService {
       return { variant: "noActiveToSwitch" }
     }
 
-    return await this.db.transaction().execute(async (tx) => {
-      const sessionsRepo = new SessionsRepositoryImpl(tx)
-      const pauseEventsRepo = new PauseEventsRepositoryImpl(tx)
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const sessionsRepo = new SessionsRepositoryImpl(tx)
+        const pauseEventsRepo = new PauseEventsRepositoryImpl(tx)
+        const tagsRepo = new TagsRepositoryImpl(tx)
 
-      const transitionResult = await sessionsRepo.transition({
-        sessionId: active.id,
-        from: active.status,
-        to: "completed",
+        const transitionResult = await sessionsRepo.transition({
+          sessionId: active.id,
+          from: active.status,
+          to: "completed",
+        })
+
+        if (transitionResult.variant !== "transitioned") {
+          return this.toTransitionFailed(transitionResult, active.status, "completed")
+        }
+
+        await this.resolveActivePause(active, pauseEventsRepo)
+
+        const session = await sessionsRepo.create({
+          status: "active",
+          startedAt: new Date().toISOString(),
+          projectId: resolved.project.id,
+          note: params.note ?? null,
+        })
+
+        const tagNames = await this.associateTagsWithSession(
+          params.tags ?? [],
+          session.id,
+          tagsRepo,
+        )
+
+        return {
+          variant: "switched" as const,
+          completedSessionId: active.id,
+          newSessionId: session.id,
+          clientName: resolved.client.name,
+          projectName: resolved.project.name,
+          tags: tagNames,
+        }
       })
-
-      if (transitionResult.variant !== "transitioned") {
-        return this.toTransitionFailed(transitionResult, active.status, "completed")
+    } catch (error) {
+      if (error instanceof TagResolutionError) {
+        return { variant: "tagResolutionFailed", errors: error.tagNames }
       }
+      throw error
+    }
+  }
 
-      await this.resolveActivePause(active, pauseEventsRepo)
+  async updateTags(sessionId: number, tagNames: string[]): Promise<UpdateTagsResult> {
+    const session = await this.sessionsRepo.getById(sessionId)
+    if (!session) {
+      return { variant: "sessionNotFound" }
+    }
 
-      const session = await sessionsRepo.create({
-        status: "active",
-        startedAt: new Date().toISOString(),
-        projectId: resolved.project.id,
-        note: params.note ?? null,
+    try {
+      return await this.db.transaction().execute(async (tx) => {
+        const tagsRepo = new TagsRepositoryImpl(tx)
+
+        await tagsRepo.removeAllSessionTags(sessionId)
+        const resolvedTags = await this.associateTagsWithSession(tagNames, sessionId, tagsRepo)
+
+        return { variant: "updated" as const, tags: resolvedTags }
       })
-
-      return {
-        variant: "switched",
-        completedSessionId: active.id,
-        newSessionId: session.id,
-        clientName: resolved.client.name,
-        projectName: resolved.project.name,
+    } catch (error) {
+      if (error instanceof TagResolutionError) {
+        return { variant: "tagResolutionFailed", errors: error.tagNames }
       }
-    })
+      throw error
+    }
+  }
+
+  private async resolveTags(
+    tagNames: string[],
+    tagsRepo: TagsRepository,
+  ): Promise<Selectable<Tag>[]> {
+    const uniqueNames = [...new Set(tagNames)]
+    const resolved: Selectable<Tag>[] = []
+
+    for (const name of uniqueNames) {
+      let tag = await tagsRepo.getByName(name)
+      if (!tag) {
+        try {
+          tag = await tagsRepo.create(name)
+        } catch (error) {
+          if (error instanceof ConstraintViolationError) {
+            tag = await tagsRepo.getByName(name)
+            if (!tag) throw new TagResolutionError([name])
+          } else {
+            throw error
+          }
+        }
+      }
+      resolved.push(tag)
+    }
+
+    return resolved
+  }
+
+  private async associateTagsWithSession(
+    tagNames: string[],
+    sessionId: number,
+    tagsRepo: TagsRepository,
+  ): Promise<string[]> {
+    if (!tagNames || tagNames.length === 0) return []
+    const tags = await this.resolveTags(tagNames, tagsRepo)
+    await Promise.all(
+      tags.map((t) =>
+        tagsRepo.addToSession({
+          tagId: t.id,
+          sessionId,
+        }),
+      ),
+    )
+    return tags.map((t) => t.name)
   }
 
   private async resolveClientProject(

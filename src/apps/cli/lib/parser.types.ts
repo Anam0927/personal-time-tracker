@@ -3,11 +3,12 @@ import type { LogLevel } from "@/lib/logging/schemas"
 
 export type CliCommand =
   | { name: "tui" }
-  | { name: "start"; client: string; project: string }
+  | { name: "start"; client: string; project: string; tags?: string[] }
   | { name: "stop" }
-  | { name: "switch"; client: string; project: string }
+  | { name: "switch"; client: string; project: string; tags?: string[] }
   | { name: "status" }
   | { name: "report"; reportScope: ReportScope }
+  | { name: "update-tags"; tags: string[] }
 
 type CommandWithGlobalOptions<T extends CliCommand> = T & {
   logLevel?: LogLevel

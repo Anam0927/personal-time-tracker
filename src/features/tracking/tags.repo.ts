@@ -12,6 +12,7 @@ export interface TagsRepository {
   addToSession({ sessionId, tagId }: { sessionId: number; tagId: number }): Promise<void>
   removeFromSession({ sessionId, tagId }: { sessionId: number; tagId: number }): Promise<void>
   getSessionTags(sessionId: number): Promise<Selectable<Tag>[]>
+  removeAllSessionTags(sessionId: number): Promise<void>
 }
 
 export class TagsRepositoryImpl extends BaseRepository implements TagsRepository {
@@ -49,7 +50,14 @@ export class TagsRepositoryImpl extends BaseRepository implements TagsRepository
   }
 
   async addToSession({ sessionId, tagId }: { sessionId: number; tagId: number }): Promise<void> {
-    await this.db.insertInto("sessionTags").values({ sessionId, tagId }).execute()
+    try {
+      await this.db.insertInto("sessionTags").values({ sessionId, tagId }).execute()
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("UNIQUE constraint failed")) {
+        throw new ConstraintViolationError("SessionTag", "sessionId, tagId")
+      }
+      throw error
+    }
   }
 
   async removeFromSession({
@@ -72,6 +80,13 @@ export class TagsRepositoryImpl extends BaseRepository implements TagsRepository
       .innerJoin("tags", "tags.id", "sessionTags.tagId")
       .selectAll("tags")
       .where("sessionTags.sessionId", "=", sessionId)
+      .execute()
+  }
+
+  async removeAllSessionTags(sessionId: number): Promise<void> {
+    await this.db
+      .deleteFrom("sessionTags")
+      .where("sessionId", "=", sessionId)
       .execute()
   }
 }

@@ -53,12 +53,19 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
     const startOptions = command.opts() as {
       client: string
       project: string
+      tag?: string[]
     }
 
     if (Object.keys(startOptions).length > 0) {
       return {
         kind: "command",
-        command: { name: "start", ...startOptions, ...defaultOptions },
+        command: {
+          name: "start",
+          client: startOptions.client,
+          project: startOptions.project,
+          ...(startOptions.tag && startOptions.tag.length > 0 ? { tags: startOptions.tag } : {}),
+          ...defaultOptions,
+        },
       }
     }
   }
@@ -74,13 +81,35 @@ export const parseCliCommand = (argv: string[]): ParsedCliCommand | null => {
     const switchOptions = command.opts() as {
       client: string
       project: string
+      tag?: string[]
     }
 
     if (Object.keys(switchOptions).length > 0) {
       return {
         kind: "command",
-        command: { name: "switch", ...switchOptions, ...defaultOptions },
+        command: {
+          name: "switch",
+          client: switchOptions.client,
+          project: switchOptions.project,
+          ...(switchOptions.tag && switchOptions.tag.length > 0 ? { tags: switchOptions.tag } : {}),
+          ...defaultOptions,
+        },
       }
+    }
+  }
+
+  if (command.name() === "update-tags") {
+    const updateOptions = command.opts() as {
+      tag: string[]
+    }
+
+    return {
+      kind: "command",
+      command: {
+        name: "update-tags",
+        tags: updateOptions.tag,
+        ...defaultOptions,
+      },
     }
   }
 

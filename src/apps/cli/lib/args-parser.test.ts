@@ -50,6 +50,13 @@ describe("parseCliCommand", () => {
     it("throws when start is missing -p", () => {
       expect(() => parseCliCommand(["start", "-c", "MyClient"])).toThrow()
     })
+
+    it("parses start with tags", () => {
+      expect(parseCliCommand(["start", "-c", "MyClient", "-p", "MyProject", "-t", "urgent", "-t", "billing"])).toEqual({
+        kind: "command",
+        command: { name: "start", client: "myclient", project: "myproject", tags: ["urgent", "billing"] },
+      })
+    })
   })
 
   describe("stop command", () => {
@@ -75,6 +82,13 @@ describe("parseCliCommand", () => {
 
     it("throws when switch is missing -p", () => {
       expect(() => parseCliCommand(["switch", "-c", "MyClient"])).toThrow()
+    })
+
+    it("parses switch with tags", () => {
+      expect(parseCliCommand(["switch", "-c", "MyClient", "-p", "MyProject", "-t", "bugfix"])).toEqual({
+        kind: "command",
+        command: { name: "switch", client: "myclient", project: "myproject", tags: ["bugfix"] },
+      })
     })
   })
 
@@ -116,6 +130,19 @@ describe("parseCliCommand", () => {
         kind: "command",
         command: { name: "tui" },
       })
+    })
+  })
+
+  describe("update-tags command", () => {
+    it("parses update-tags with tags", () => {
+      expect(parseCliCommand(["update-tags", "-t", "urgent", "-t", "billing"])).toEqual({
+        kind: "command",
+        command: { name: "update-tags", tags: ["urgent", "billing"] },
+      })
+    })
+
+    it("throws when update-tags has no tags", () => {
+      expect(() => parseCliCommand(["update-tags"])).toThrow()
     })
   })
 

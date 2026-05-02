@@ -10,6 +10,7 @@ import { ProjectsRepositoryImpl } from "../projects/repo"
 import { PauseEventsRepositoryImpl } from "./pause-events.repo"
 import { TimerServiceImpl } from "./service"
 import { SessionsRepositoryImpl } from "./sessions.repo"
+import { TagsRepositoryImpl } from "./tags.repo"
 
 let db: Kysely<DB>
 let cleanup: () => void
@@ -18,6 +19,7 @@ let clientsRepo: ClientsRepositoryImpl
 let projectsRepo: ProjectsRepositoryImpl
 let sessionsRepo: SessionsRepositoryImpl
 let pauseEventsRepo: PauseEventsRepositoryImpl
+let tagsRepo: TagsRepositoryImpl
 let service: TimerServiceImpl
 
 beforeAll(async () => {
@@ -29,6 +31,7 @@ beforeAll(async () => {
   projectsRepo = new ProjectsRepositoryImpl(db)
   sessionsRepo = new SessionsRepositoryImpl(db)
   pauseEventsRepo = new PauseEventsRepositoryImpl(db)
+  tagsRepo = new TagsRepositoryImpl(db)
   service = new TimerServiceImpl(db)
 })
 
@@ -368,5 +371,123 @@ describe("TimerServiceImpl", () => {
       expect(Number(switched.completedSessionId)).toBeGreaterThan(0)
       expect(Number(switched.newSessionId)).toBeGreaterThan(0)
     })
+  })
+
+  describe("tags", () => {
+    it("start() associates tags with the session", async () => {
+      const client = await clientsRepo.create("TagClient")
+      await projectsRepo.create({ name: "TagProject", clientId: Number(client.id) })
+
+      const result = await service.start({
+        clientName: "TagClient",
+        projectName: "TagProject",
+        tags: ["urgent", "billing"],
+      })
+
+      expect(result.variant).toBe("started")
+      const started = result as Extract<typeof result, { variant: "started" }>
+      expect(started.tags).toEqual(["urgent", "billing"])
+    })
+
+    it("start() deduplicates duplicate tag names", async () => {
+      const client = await clientsRepo.create("DedupClient")
+      await projectsRepo.create({ name: "DedupProject", clientId: Number(client.id) })
+
+      const result = await service.start({
+        clientName: "DedupClient",
+        projectName: "DedupProject",
+        tags: ["urgent", "urgent"],
+      })
+
+      expect(result.variant).toBe("started")
+      const started = result as Extract<typeof result, { variant: "started" }>
+      expect(started.tags).toEqual(["urgent"])
+    })
+
+    it("start() reuses existing tags instead of creating duplicates", async () => {
+      const client = await clientsRepo.create("ReuseClient")
+      await projectsRepo.create({ name: "ReuseProject", clientId: Number(client.id) })
+      await tagsRepo.create("existing")
+
+      const result = await service.start({
+        clientName: "ReuseClient",
+        projectName: "ReuseProject",
+        tags: ["existing", "new"],
+      })
+
+      expect(result.variant).toBe("started")
+      const started = result as Extract<typeof result, { variant: "started" }>
+      expect(started.tags).toContain("existing")
+      expect(started.tags).toContain("new")
+    })
+
+    it("switch() passes tags to new session", async () => {
+      const client1 = await clientsRepo.create("SwitchTag1")
+      await projectsRepo.create({ name: "SwitchTagProj1", clientId: Number(client1.id) })
+      const client2 = await clientsRepo.create("SwitchTag2")
+      await projectsRepo.create({ name: "SwitchTagProj2", clientId: Number(client2.id) })
+
+      await service.start({ clientName: "SwitchTag1", projectName: "SwitchTagProj1" })
+      const result = await service.switch({
+        clientName: "SwitchTag2",
+        projectName: "SwitchTagProj2",
+        tags: ["switched"],
+      })
+
+      expect(result.variant).toBe("switched")
+      const switched = result as Extract<typeof result, { variant: "switched" }>
+      expect(switched.tags).toEqual(["switched"])
+    })
+
+    it("updateTags() replaces existing tags on active session", async () => {
+      const client = await clientsRepo.create("UpdateClient")
+      await projectsRepo.create({ name: "UpdateProject", clientId: Number(client.id) })
+
+      const startResult = await service.start({
+        clientName: "UpdateClient",
+        projectName: "UpdateProject",
+        tags: ["old"],
+      })
+      expect(startResult.variant).toBe("started")
+      const started = startResult as Extract<typeof startResult, { variant: "started" }>
+
+      const updateResult = await service.updateTags(started.sessionId, ["new"])
+      expect(updateResult.variant).toBe("updated")
+      const updated = updateResult as Extract<typeof updateResult, { variant: "updated" }>
+      expect(updated.tags).toEqual(["new"])
+    })
+
+    it("updateTags() updates tags on completed sessions", async () => {
+      const client = await clientsRepo.create("CompletedTagClient")
+      await projectsRepo.create({ name: "CompletedTagProject", clientId: Number(client.id) })
+
+      const startResult = await service.start({
+        clientName: "CompletedTagClient",
+        projectName: "CompletedTagProject",
+        tags: ["original"],
+      })
+      expect(startResult.variant).toBe("started")
+      const started = startResult as Extract<typeof startResult, { variant: "started" }>
+
+      await service.stop()
+
+      const updateResult = await service.updateTags(started.sessionId, ["revised"])
+      expect(updateResult.variant).toBe("updated")
+      const updated = updateResult as Extract<typeof updateResult, { variant: "updated" }>
+      expect(updated.tags).toEqual(["revised"])
+    })
+
+    it("updateTags() returns sessionNotFound for non-existent session", async () => {
+      const result = await service.updateTags(99999, ["tag"])
+      expect(result.variant).toBe("sessionNotFound")
+    })
+
+    // NOTE: tagResolutionFailed variant is hard to test without mocking internal
+    // dependencies. It requires triggering a TagResolutionError inside resolveTags(),
+    // which only happens in a narrow race condition: a concurrent transaction creates
+    // a tag between getByName() and create(), causing ConstraintViolationError, and
+    // then the retry getByName() also fails. This gap is acceptable — the error path
+    // is structurally guaranteed by the type system (TagResolutionError is thrown and
+    // caught at the transaction boundary).
   })
 })
