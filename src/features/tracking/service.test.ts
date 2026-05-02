@@ -29,7 +29,7 @@ beforeAll(async () => {
   projectsRepo = new ProjectsRepositoryImpl(db)
   sessionsRepo = new SessionsRepositoryImpl(db)
   pauseEventsRepo = new PauseEventsRepositoryImpl(db)
-  service = new TimerServiceImpl(sessionsRepo, pauseEventsRepo, clientsRepo, projectsRepo)
+  service = new TimerServiceImpl(db)
 })
 
 afterAll(() => {
@@ -223,7 +223,7 @@ describe("TimerServiceImpl", () => {
       expect(startResult.variant).toBe("started")
 
       const started = startResult as Extract<typeof startResult, { variant: "started" }>
-      await sessionsRepo.setStatus({ sessionId: started.sessionId, status: "paused" })
+      await sessionsRepo.transition({ sessionId: started.sessionId, from: "active", to: "paused" })
       const pauseEvent = await pauseEventsRepo.create({ sessionId: started.sessionId })
       expect(pauseEvent.resumedAt).toBeNull()
 
@@ -353,7 +353,7 @@ describe("TimerServiceImpl", () => {
       expect(startResult.variant).toBe("started")
 
       const started = startResult as Extract<typeof startResult, { variant: "started" }>
-      await sessionsRepo.setStatus({ sessionId: started.sessionId, status: "paused" })
+      await sessionsRepo.transition({ sessionId: started.sessionId, from: "active", to: "paused" })
       const pauseEvent = await pauseEventsRepo.create({ sessionId: started.sessionId })
       expect(pauseEvent.resumedAt).toBeNull()
 

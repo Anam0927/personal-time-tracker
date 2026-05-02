@@ -1,9 +1,22 @@
-import type { Selectable } from "kysely"
+import type { Kysely, Selectable, Transaction } from "kysely"
 
+import {
+  canTransition,
+  type SessionStatus,
+  type TransitionResult,
+} from "@/features/tracking/state-machine"
 import { BaseRepository } from "@/lib/db/base-repo"
 import { NotFoundError } from "@/lib/db/errors"
 import { calculateElapsedMinutes } from "@/lib/db/lib/utils"
+import type { DB } from "@/lib/db/types"
 import type { Session } from "@/lib/db/types"
+
+function parseSessionStatus(value: string): SessionStatus {
+  if (value === "active" || value === "paused" || value === "completed") {
+    return value
+  }
+  throw new Error(`Invalid session status: ${value}`)
+}
 
 export type ActiveSession = Selectable<Session> & {
   projectName: string | null
@@ -22,13 +35,11 @@ export interface SessionsRepository {
   getById(id: number): Promise<Selectable<Session> | null>
   listHistory(opts?: { limit?: number; offset?: number }): Promise<Selectable<Session>[]>
   updateNote({ sessionId, note }: { sessionId: number; note: string }): Promise<Selectable<Session>>
-  setStatus({
-    sessionId,
-    status,
-  }: {
+  transition(params: {
     sessionId: number
-    status: Session["status"]
-  }): Promise<Selectable<Session>>
+    from: SessionStatus
+    to: SessionStatus
+  }): Promise<TransitionResult>
   setThreshold({
     sessionId,
     minutes,
@@ -36,7 +47,6 @@ export interface SessionsRepository {
     sessionId: number
     minutes: number
   }): Promise<Selectable<Session>>
-  complete(data: { sessionId: number; endedAt: string }): Promise<Selectable<Session>>
   setEndedAt({
     sessionId,
     endedAt,
@@ -119,23 +129,53 @@ export class SessionsRepositoryImpl extends BaseRepository implements SessionsRe
     return result
   }
 
-  async setStatus({
-    sessionId,
-    status,
-  }: {
+  async transition(params: {
     sessionId: number
-    status: Session["status"]
-  }): Promise<Selectable<Session>> {
-    const result = await this.db
-      .updateTable("sessions")
-      .set({ status })
-      .where("id", "=", sessionId)
-      .returningAll()
-      .executeTakeFirst()
+    from: SessionStatus
+    to: SessionStatus
+  }): Promise<TransitionResult> {
+    if (!canTransition(params.from, params.to)) {
+      return { variant: "invalidTransition", from: params.from, to: params.to }
+    }
 
-    if (!result) throw new NotFoundError("Session", sessionId)
+    const exec = async (db: Kysely<DB> | Transaction<DB>): Promise<TransitionResult> => {
+      const result = await db
+        .updateTable("sessions")
+        .set({
+          status: params.to,
+          ...(params.to === "completed" ? { endedAt: new Date().toISOString() } : {}),
+        })
+        .where("id", "=", params.sessionId)
+        .where("status", "=", params.from)
+        .returningAll()
+        .executeTakeFirst()
 
-    return result
+      if (!result) {
+        const session = await db
+          .selectFrom("sessions")
+          .selectAll()
+          .where("id", "=", params.sessionId)
+          .executeTakeFirst()
+
+        if (!session) {
+          return { variant: "notFound" }
+        }
+        return {
+          variant: "staleState",
+          expected: params.from,
+          actual: parseSessionStatus(session.status),
+        }
+      }
+
+      return { variant: "transitioned", session: result }
+    }
+
+    // Transaction doesn't support .transaction() — skip wrapping if already inside one
+    if (this.db.isTransaction) {
+      return await exec(this.db)
+    }
+
+    return await this.db.transaction().execute(async (tx) => exec(tx))
   }
 
   async setThreshold({
@@ -153,24 +193,6 @@ export class SessionsRepositoryImpl extends BaseRepository implements SessionsRe
       .executeTakeFirst()
 
     if (!result) throw new NotFoundError("Session", sessionId)
-
-    return result
-  }
-
-  async complete(data: { sessionId: number; endedAt: string }): Promise<Selectable<Session>> {
-    const result = await this.db
-      .updateTable("sessions")
-      .set({
-        endedAt: data.endedAt,
-        status: "completed",
-      })
-      .where("id", "=", data.sessionId)
-      .returningAll()
-      .executeTakeFirst()
-
-    if (!result) {
-      throw new NotFoundError("Session", data.sessionId)
-    }
 
     return result
   }

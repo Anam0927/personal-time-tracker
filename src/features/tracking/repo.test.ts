@@ -124,22 +124,115 @@ describe("SessionsRepositoryImpl", () => {
     expect(updated.note).toBe("revised note")
   })
 
-  it("setStatus() changes status", async () => {
+  it("transition() active→paused works and does not set endedAt", async () => {
     const session = await sessionsRepo.create({
       startedAt: new Date().toISOString(),
       status: "active",
     })
-    const paused = await sessionsRepo.setStatus({
+    const result = await sessionsRepo.transition({
       sessionId: session.id,
+      from: "active",
+      to: "paused",
+    })
+    expect(result.variant).toBe("transitioned")
+    if (result.variant === "transitioned") {
+      expect(result.session.status).toBe("paused")
+      expect(result.session.endedAt).toBeNull()
+    }
+  })
+
+  it("transition() active→completed sets endedAt", async () => {
+    const session = await sessionsRepo.create({
+      startedAt: new Date().toISOString(),
+      status: "active",
+    })
+    const result = await sessionsRepo.transition({
+      sessionId: session.id,
+      from: "active",
+      to: "completed",
+    })
+    expect(result.variant).toBe("transitioned")
+    if (result.variant === "transitioned") {
+      expect(result.session.status).toBe("completed")
+      expect(result.session.endedAt).not.toBeNull()
+    }
+  })
+
+  it("transition() paused→active works and does not set endedAt", async () => {
+    const session = await sessionsRepo.create({
+      startedAt: new Date().toISOString(),
       status: "paused",
     })
-    expect(paused.status).toBe("paused")
-
-    const completed = await sessionsRepo.setStatus({
+    const result = await sessionsRepo.transition({
       sessionId: session.id,
+      from: "paused",
+      to: "active",
+    })
+    expect(result.variant).toBe("transitioned")
+    if (result.variant === "transitioned") {
+      expect(result.session.status).toBe("active")
+      expect(result.session.endedAt).toBeNull()
+    }
+  })
+
+  it("transition() paused→completed sets endedAt", async () => {
+    const session = await sessionsRepo.create({
+      startedAt: new Date().toISOString(),
+      status: "paused",
+    })
+    const result = await sessionsRepo.transition({
+      sessionId: session.id,
+      from: "paused",
+      to: "completed",
+    })
+    expect(result.variant).toBe("transitioned")
+    if (result.variant === "transitioned") {
+      expect(result.session.status).toBe("completed")
+      expect(result.session.endedAt).not.toBeNull()
+    }
+  })
+
+  it("transition() invalid transition returns invalidTransition variant", async () => {
+    const session = await sessionsRepo.create({
+      startedAt: new Date().toISOString(),
       status: "completed",
     })
-    expect(completed.status).toBe("completed")
+    const result = await sessionsRepo.transition({
+      sessionId: session.id,
+      from: "completed",
+      to: "active",
+    })
+    expect(result.variant).toBe("invalidTransition")
+    if (result.variant === "invalidTransition") {
+      expect(result.from).toBe("completed")
+      expect(result.to).toBe("active")
+    }
+  })
+
+  it("transition() returns notFound for nonexistent sessionId", async () => {
+    const result = await sessionsRepo.transition({
+      sessionId: 99999,
+      from: "active",
+      to: "paused",
+    })
+    expect(result.variant).toBe("notFound")
+  })
+
+  it("transition() returns staleState when from does not match actual status", async () => {
+    const session = await sessionsRepo.create({
+      startedAt: new Date().toISOString(),
+      status: "active",
+    })
+    const result = await sessionsRepo.transition({
+      sessionId: session.id,
+      from: "paused",
+      to: "active",
+    })
+    expect(result.variant).toBe("staleState")
+    if (result.variant === "staleState") {
+      expect(result.expected).toBe("paused")
+      expect(result.actual).toBe("active")
+    }
   })
 
   it("setThreshold() sets thresholdMinutes", async () => {

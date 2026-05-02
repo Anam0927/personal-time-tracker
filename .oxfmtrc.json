@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": [".agents/**", "src/db/types.ts"],
+  "ignorePatterns": [".agents/**", "src/lib/db/types.ts"],
   "semi": false,
   "sortImports": true
 }

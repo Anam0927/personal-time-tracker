@@ -1,11 +1,14 @@
-import type { Selectable } from "kysely"
+import type { Kysely, Selectable } from "kysely"
 
-import type { ClientsRepository } from "@/features/clients/repo"
-import type { ProjectsRepository } from "@/features/projects/repo"
-import type { Client, Project } from "@/lib/db/types"
+import { ClientsRepositoryImpl } from "@/features/clients/repo"
+import { ProjectsRepositoryImpl } from "@/features/projects/repo"
+import type { Client, DB, Project } from "@/lib/db/types"
 
 import type { PauseEventsRepository } from "./pause-events.repo"
-import type { ActiveSession, SessionsRepository } from "./sessions.repo"
+import { PauseEventsRepositoryImpl } from "./pause-events.repo"
+import type { ActiveSession } from "./sessions.repo"
+import { SessionsRepositoryImpl } from "./sessions.repo"
+import type { SessionStatus, TransitionResult } from "./state-machine"
 
 export type StartResult =
   | { variant: "started"; sessionId: number; clientName: string; projectName: string }
@@ -21,9 +24,17 @@ export type StartResult =
   | { variant: "clientArchived"; name: string }
   | { variant: "projectArchived"; name: string }
 
+type TransitionFailedResult = {
+  variant: "transitionFailed"
+  from: SessionStatus
+  to: SessionStatus
+  reason: string
+}
+
 export type StopResult =
   | { variant: "stopped"; sessionId: number; elapsedMinutes: number }
   | { variant: "noActive" }
+  | TransitionFailedResult
 
 export type SwitchResult =
   | {
@@ -34,6 +45,7 @@ export type SwitchResult =
       projectName: string
     }
   | { variant: "noActiveToSwitch" }
+  | TransitionFailedResult
   | { variant: "clientNotFound"; name: string }
   | { variant: "projectNotFound"; name: string; clientName: string }
   | { variant: "clientArchived"; name: string }
@@ -53,12 +65,15 @@ export interface TimerService {
 }
 
 export class TimerServiceImpl implements TimerService {
-  constructor(
-    private readonly sessionsRepo: SessionsRepository,
-    private readonly pauseEventsRepo: PauseEventsRepository,
-    private readonly clientsRepo: ClientsRepository,
-    private readonly projectsRepo: ProjectsRepository,
-  ) {}
+  private readonly sessionsRepo: SessionsRepositoryImpl
+  private readonly clientsRepo: ClientsRepositoryImpl
+  private readonly projectsRepo: ProjectsRepositoryImpl
+
+  constructor(private readonly db: Kysely<DB>) {
+    this.sessionsRepo = new SessionsRepositoryImpl(this.db)
+    this.clientsRepo = new ClientsRepositoryImpl(this.db)
+    this.projectsRepo = new ProjectsRepositoryImpl(this.db)
+  }
 
   async start(params: {
     clientName: string
@@ -114,13 +129,28 @@ export class TimerServiceImpl implements TimerService {
       return { variant: "noActive" }
     }
 
-    await this.completeSession(active)
+    return await this.db.transaction().execute(async (tx) => {
+      const sessionsRepo = new SessionsRepositoryImpl(tx)
+      const pauseEventsRepo = new PauseEventsRepositoryImpl(tx)
 
-    return {
-      variant: "stopped",
-      sessionId: active.id,
-      elapsedMinutes: active.elapsedMinutes,
-    }
+      const result = await sessionsRepo.transition({
+        sessionId: active.id,
+        from: active.status,
+        to: "completed",
+      })
+
+      if (result.variant !== "transitioned") {
+        return this.toTransitionFailed(result, active.status, "completed")
+      }
+
+      await this.resolveActivePause(active, pauseEventsRepo)
+
+      return {
+        variant: "stopped",
+        sessionId: active.id,
+        elapsedMinutes: active.elapsedMinutes,
+      }
+    })
   }
 
   async switch(params: {
@@ -138,22 +168,37 @@ export class TimerServiceImpl implements TimerService {
       return { variant: "noActiveToSwitch" }
     }
 
-    await this.completeSession(active)
+    return await this.db.transaction().execute(async (tx) => {
+      const sessionsRepo = new SessionsRepositoryImpl(tx)
+      const pauseEventsRepo = new PauseEventsRepositoryImpl(tx)
 
-    const session = await this.sessionsRepo.create({
-      status: "active",
-      startedAt: new Date().toISOString(),
-      projectId: resolved.project.id,
-      note: params.note ?? null,
+      const transitionResult = await sessionsRepo.transition({
+        sessionId: active.id,
+        from: active.status,
+        to: "completed",
+      })
+
+      if (transitionResult.variant !== "transitioned") {
+        return this.toTransitionFailed(transitionResult, active.status, "completed")
+      }
+
+      await this.resolveActivePause(active, pauseEventsRepo)
+
+      const session = await sessionsRepo.create({
+        status: "active",
+        startedAt: new Date().toISOString(),
+        projectId: resolved.project.id,
+        note: params.note ?? null,
+      })
+
+      return {
+        variant: "switched",
+        completedSessionId: active.id,
+        newSessionId: session.id,
+        clientName: resolved.client.name,
+        projectName: resolved.project.name,
+      }
     })
-
-    return {
-      variant: "switched",
-      completedSessionId: active.id,
-      newSessionId: session.id,
-      clientName: resolved.client.name,
-      projectName: resolved.project.name,
-    }
   }
 
   private async resolveClientProject(
@@ -185,13 +230,42 @@ export class TimerServiceImpl implements TimerService {
     return { ok: true, client, project }
   }
 
-  private async completeSession(session: ActiveSession): Promise<void> {
-    if (session.status === "paused") {
-      const activePause = await this.pauseEventsRepo.getActivePause(session.id)
-      if (activePause) {
-        await this.pauseEventsRepo.resume(activePause.id)
+  private toTransitionFailed(
+    result: TransitionResult,
+    from: SessionStatus,
+    to: SessionStatus,
+  ): TransitionFailedResult {
+    if (result.variant === "invalidTransition") {
+      return {
+        variant: "transitionFailed",
+        from: result.from,
+        to: result.to,
+        reason: `Invalid transition from ${result.from} to ${result.to}`,
       }
     }
-    await this.sessionsRepo.complete({ sessionId: session.id, endedAt: new Date().toISOString() })
+    if (result.variant === "staleState") {
+      return {
+        variant: "transitionFailed",
+        from: result.expected,
+        to,
+        reason: `Expected status ${result.expected} but actual is ${result.actual}`,
+      }
+    }
+    return {
+      variant: "transitionFailed",
+      from,
+      to,
+      reason: "Session not found",
+    }
+  }
+
+  private async resolveActivePause(
+    session: ActiveSession,
+    pauseEventsRepo: PauseEventsRepository,
+  ): Promise<void> {
+    if (session.status !== "paused") return
+
+    const activePause = await pauseEventsRepo.getActivePause(session.id)
+    if (activePause) await pauseEventsRepo.resume(activePause.id)
   }
 }
