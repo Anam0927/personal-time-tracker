@@ -6,6 +6,7 @@ import type { PauseEvent } from "../types"
 export function calculateElapsedMinutes(
   startedAt: string,
   pauseEvents: Selectable<PauseEvent>[],
+  endedAt?: string | null,
 ): number {
   const start = new Date(startedAt)
 
@@ -22,7 +23,7 @@ export function calculateElapsedMinutes(
     }
   }
 
-  const effectiveNow = currentPauseStart ?? new Date()
+  const effectiveNow = currentPauseStart ?? (endedAt ? new Date(endedAt) : new Date())
   const elapsedMs = differenceInMilliseconds(effectiveNow, start) - completedPauseMs
 
   return millisecondsToMinutes(elapsedMs)

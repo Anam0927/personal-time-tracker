@@ -372,6 +372,31 @@ describe("PauseEventsRepositoryImpl", () => {
     expect(events).toEqual([])
   })
 
+  it("getBySessionIds() returns all pause events for multiple sessions", async () => {
+    const session2 = await sessionsRepo.create({
+      startedAt: new Date().toISOString(),
+      status: "paused",
+    })
+
+    const e1 = await pauseEventsRepo.create({ sessionId })
+    await pauseEventsRepo.resume(Number(e1.id))
+    await pauseEventsRepo.create({ sessionId })
+    await pauseEventsRepo.create({ sessionId: Number(session2.id) })
+
+    const events = await pauseEventsRepo.getBySessionIds([sessionId, Number(session2.id)])
+    expect(events.length).toBe(3)
+  })
+
+  it("getBySessionIds() returns empty array when no matches", async () => {
+    const events = await pauseEventsRepo.getBySessionIds([99999])
+    expect(events).toEqual([])
+  })
+
+  it("getBySessionIds() returns empty array for empty input", async () => {
+    const events = await pauseEventsRepo.getBySessionIds([])
+    expect(events).toEqual([])
+  })
+
   it("getActivePause() returns an unresolved pause event", async () => {
     const first = await pauseEventsRepo.create({
       sessionId,

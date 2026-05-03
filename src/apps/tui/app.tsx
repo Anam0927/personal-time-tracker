@@ -1,9 +1,18 @@
-import { Text, render, useApp, useInput } from "ink"
+import { render, useApp, useInput } from "ink"
+import { useMemo } from "react"
+import type { Kysely } from "kysely"
 
+import { DashboardService } from "@/features/tracking/dashboard.service"
+import type { DB } from "@/lib/db/types"
+
+import { DashboardPanel } from "./components/dashboard-panel"
+import { Shell } from "./components/shell"
 import { shouldExitNormally } from "./lib/utils"
+import { QueryClientProvider } from "./lib/provider"
 
-export function TuiShell() {
+export function TuiShell({ db }: { db: Kysely<DB> }) {
   const app = useApp()
+  const dashboardService = useMemo(() => new DashboardService(db), [db])
 
   useInput((input, key) => {
     if (!shouldExitNormally(input, key.escape)) {
@@ -13,7 +22,13 @@ export function TuiShell() {
     app.exit("normal")
   })
 
-  return <Text>Time tracker TUI - Press 'q', 'x', or 'Esc' to exit.</Text>
+  return (
+    <QueryClientProvider>
+      <Shell>
+        <DashboardPanel dashboardService={dashboardService} />
+      </Shell>
+    </QueryClientProvider>
+  )
 }
 
 export interface TuiApp {
@@ -21,12 +36,14 @@ export interface TuiApp {
 }
 
 export class InkTuiApp implements TuiApp {
+  constructor(private readonly db: Kysely<DB>) {}
+
   async run(): Promise<number> {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       return 1
     }
 
-    const app = render(<TuiShell />, { alternateScreen: true })
+    const app = render(<TuiShell db={this.db} />, { alternateScreen: true })
     let observedSigintFallback = false
 
     const onSigint = () => {

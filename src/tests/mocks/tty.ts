@@ -85,6 +85,7 @@ type Instance = {
   stdin: Stdin
   frames: string[]
   lastFrame: () => string | undefined
+  waitUntilRenderFlush: () => Promise<void>
 }
 
 const instances: InkInstance[] = []
@@ -114,6 +115,7 @@ export const render = (tree: ReactElement): Instance => {
     stdin,
     frames: stdout.frames,
     lastFrame: stdout.lastFrame,
+    waitUntilRenderFlush: instance.waitUntilRenderFlush,
   }
 }
 

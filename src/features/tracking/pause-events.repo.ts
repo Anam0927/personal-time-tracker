@@ -14,6 +14,7 @@ export interface PauseEventsRepository {
   }): Promise<Selectable<PauseEvent>>
   resume(pauseEventId: number): Promise<Selectable<PauseEvent>>
   getBySessionId(sessionId: number): Promise<Selectable<PauseEvent>[]>
+  getBySessionIds(sessionIds: number[]): Promise<Selectable<PauseEvent>[]>
   getActivePause(sessionId: number): Promise<Selectable<PauseEvent> | null>
 }
 
@@ -53,6 +54,17 @@ export class PauseEventsRepositoryImpl extends BaseRepository implements PauseEv
       .selectFrom("pauseEvents")
       .selectAll()
       .where("sessionId", "=", sessionId)
+      .orderBy("pausedAt", "asc")
+      .execute()
+  }
+
+  async getBySessionIds(sessionIds: number[]): Promise<Selectable<PauseEvent>[]> {
+    if (sessionIds.length === 0) return []
+
+    return await this.db
+      .selectFrom("pauseEvents")
+      .selectAll()
+      .where("sessionId", "in", sessionIds)
       .orderBy("pausedAt", "asc")
       .execute()
   }

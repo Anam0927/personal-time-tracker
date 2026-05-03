@@ -35,7 +35,7 @@ const main = async (): Promise<void> => {
       return
     }
 
-    initDb()
+    const db = initDb()
     const { migrateToLatest } = await import("./lib/db/db")
     await migrateToLatest()
 
@@ -50,7 +50,7 @@ const main = async (): Promise<void> => {
         return
       }
 
-      const tuiApp = new InkTuiApp()
+      const tuiApp = new InkTuiApp(db)
       const exitCode = await tuiApp.run()
       process.exit(exitCode)
       return

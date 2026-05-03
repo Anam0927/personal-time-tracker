@@ -19,12 +19,14 @@
     "db:setup": "bun run db:migrate && bun run db:codegen"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.8",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
     "cosmiconfig": "^9.0.1",
     "date-fns": "^4.1.0",
     "es-toolkit": "^1.46.0",
     "ink": "^7.0.1",
+    "ink-big-text": "^2.0.0",
     "kysely": "^0.28.16",
     "kysely-bun-sqlite": "^0.4.0",
     "pino": "^10.3.1",

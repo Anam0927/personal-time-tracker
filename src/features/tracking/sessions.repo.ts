@@ -1,4 +1,4 @@
-import type { Kysely, Selectable, Transaction } from "kysely"
+import { type Kysely, type Selectable, type Transaction, sql } from "kysely"
 
 import {
   canTransition,
@@ -8,7 +8,7 @@ import {
 import { BaseRepository } from "@/lib/db/base-repo"
 import { NotFoundError } from "@/lib/db/errors"
 import { calculateElapsedMinutes } from "@/lib/db/lib/utils"
-import type { DB } from "@/lib/db/types"
+import type { DB, PauseEvent } from "@/lib/db/types"
 import type { Session } from "@/lib/db/types"
 
 function parseSessionStatus(value: string): SessionStatus {
@@ -16,6 +16,16 @@ function parseSessionStatus(value: string): SessionStatus {
     return value
   }
   throw new Error(`Invalid session status: ${value}`)
+}
+
+export type SessionWithPauseEvents = {
+  session: Selectable<Session>
+  pauseEvents: Selectable<PauseEvent>[]
+}
+
+export type SessionWithDetails = Selectable<Session> & {
+  projectName: string | null
+  clientName: string | null
 }
 
 export type ActiveSession = Selectable<Session> & {
@@ -63,6 +73,8 @@ export interface SessionsRepository {
   }): Promise<Selectable<Session>>
   getActive(): Promise<ActiveSession | null>
   getActiveSessionRow(): Promise<Selectable<Session> | null>
+  getTodaySessions(): Promise<SessionWithPauseEvents[]>
+  listHistoryWithDetails(opts?: { limit?: number; offset?: number }): Promise<SessionWithDetails[]>
 }
 
 export class SessionsRepositoryImpl extends BaseRepository implements SessionsRepository {
@@ -275,5 +287,58 @@ export class SessionsRepositoryImpl extends BaseRepository implements SessionsRe
       .executeTakeFirst()
 
     return session ?? null
+  }
+
+  async getTodaySessions(): Promise<SessionWithPauseEvents[]> {
+    const sessions = await this.db
+      .selectFrom("sessions")
+      .selectAll()
+      .where(sql`date(started_at)`, "=", sql`date('now')`)
+      .orderBy("startedAt", "desc")
+      .execute()
+
+    if (sessions.length === 0) return []
+
+    const sessionIds = sessions.map((s) => s.id)
+    const allPauseEvents = await this.db
+      .selectFrom("pauseEvents")
+      .selectAll()
+      .where("sessionId", "in", sessionIds)
+      .execute()
+
+    const pauseBySession = new Map<number, Selectable<PauseEvent>[]>()
+    for (const pe of allPauseEvents) {
+      const list = pauseBySession.get(pe.sessionId) ?? []
+      list.push(pe)
+      pauseBySession.set(pe.sessionId, list)
+    }
+
+    return sessions.map((session) => ({
+      session,
+      pauseEvents: pauseBySession.get(session.id) ?? [],
+    }))
+  }
+
+  async listHistoryWithDetails(opts?: {
+    limit?: number
+    offset?: number
+  }): Promise<SessionWithDetails[]> {
+    let query = this.db
+      .selectFrom("sessions")
+      .leftJoin("projects", "projects.id", "sessions.projectId")
+      .leftJoin("clients", "clients.id", "projects.clientId")
+      .selectAll("sessions")
+      .select(["projects.name as projectName", "clients.name as clientName"])
+      .orderBy("sessions.startedAt", "desc")
+
+    if (opts?.limit) {
+      query = query.limit(opts.limit)
+    }
+
+    if (opts?.offset) {
+      query = query.offset(opts.offset)
+    }
+
+    return await query.execute()
   }
 }
