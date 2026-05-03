@@ -25,6 +25,7 @@
     "cosmiconfig": "^9.0.1",
     "date-fns": "^4.1.0",
     "es-toolkit": "^1.46.0",
+    "fuse.js": "^7.3.0",
     "ink": "^7.0.1",
     "ink-big-text": "^2.0.0",
     "kysely": "^0.28.16",
