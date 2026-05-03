@@ -52,9 +52,26 @@ describe("parseCliCommand", () => {
     })
 
     it("parses start with tags", () => {
-      expect(parseCliCommand(["start", "-c", "MyClient", "-p", "MyProject", "-t", "urgent", "-t", "billing"])).toEqual({
+      expect(
+        parseCliCommand([
+          "start",
+          "-c",
+          "MyClient",
+          "-p",
+          "MyProject",
+          "-t",
+          "urgent",
+          "-t",
+          "billing",
+        ]),
+      ).toEqual({
         kind: "command",
-        command: { name: "start", client: "myclient", project: "myproject", tags: ["urgent", "billing"] },
+        command: {
+          name: "start",
+          client: "myclient",
+          project: "myproject",
+          tags: ["urgent", "billing"],
+        },
       })
     })
   })
@@ -85,7 +102,9 @@ describe("parseCliCommand", () => {
     })
 
     it("parses switch with tags", () => {
-      expect(parseCliCommand(["switch", "-c", "MyClient", "-p", "MyProject", "-t", "bugfix"])).toEqual({
+      expect(
+        parseCliCommand(["switch", "-c", "MyClient", "-p", "MyProject", "-t", "bugfix"]),
+      ).toEqual({
         kind: "command",
         command: { name: "switch", client: "myclient", project: "myproject", tags: ["bugfix"] },
       })

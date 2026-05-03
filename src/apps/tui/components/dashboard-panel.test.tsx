@@ -1,5 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, expect, it } from "bun:test"
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import type { DashboardData } from "@/features/tracking/dashboard.service"
 import type { DashboardService } from "@/features/tracking/dashboard.service"
@@ -91,8 +92,32 @@ it("shows recent sessions", async () => {
     activeSession: null,
     todayTotals: { totalElapsedMinutes: 45, sessionCount: 2 },
     recentSessions: [
-      { id: 1, clientName: "C1", projectName: "P1", elapsedMinutes: 30, status: "completed" as const, startedAt: "", createdAt: "", endedAt: null, note: null, projectId: 10, thresholdMinutes: null },
-      { id: 2, clientName: "C2", projectName: "P2", elapsedMinutes: 15, status: "paused" as const, startedAt: "", createdAt: "", endedAt: null, note: null, projectId: null, thresholdMinutes: null },
+      {
+        id: 1,
+        clientName: "C1",
+        projectName: "P1",
+        elapsedMinutes: 30,
+        status: "completed" as const,
+        startedAt: "",
+        createdAt: "",
+        endedAt: null,
+        note: null,
+        projectId: 10,
+        thresholdMinutes: null,
+      },
+      {
+        id: 2,
+        clientName: "C2",
+        projectName: "P2",
+        elapsedMinutes: 15,
+        status: "paused" as const,
+        startedAt: "",
+        createdAt: "",
+        endedAt: null,
+        note: null,
+        projectId: null,
+        thresholdMinutes: null,
+      },
     ],
   })
 

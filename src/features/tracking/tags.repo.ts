@@ -84,9 +84,6 @@ export class TagsRepositoryImpl extends BaseRepository implements TagsRepository
   }
 
   async removeAllSessionTags(sessionId: number): Promise<void> {
-    await this.db
-      .deleteFrom("sessionTags")
-      .where("sessionId", "=", sessionId)
-      .execute()
+    await this.db.deleteFrom("sessionTags").where("sessionId", "=", sessionId).execute()
   }
 }

@@ -3,6 +3,7 @@ import { type Kysely, type Selectable } from "kysely"
 import { calculateElapsedMinutes } from "@/lib/db/lib/utils"
 import type { DB, PauseEvent } from "@/lib/db/types"
 
+import { PauseEventsRepositoryImpl, type PauseEventsRepository } from "./pause-events.repo"
 import {
   SessionsRepositoryImpl,
   type ActiveSession,
@@ -10,7 +11,6 @@ import {
   type SessionWithPauseEvents,
   type SessionsRepository,
 } from "./sessions.repo"
-import { PauseEventsRepositoryImpl, type PauseEventsRepository } from "./pause-events.repo"
 
 // ---- Domain Types ----
 
@@ -67,9 +67,10 @@ export class DashboardService {
   private computeTodayTotals(todaySessions: SessionWithPauseEvents[]): TodayTotals {
     let totalElapsedMinutes = 0
     for (const { session, pauseEvents } of todaySessions) {
-      totalElapsedMinutes += session.status === "completed"
-        ? calculateElapsedMinutes(session.startedAt, pauseEvents, session.endedAt)
-        : calculateElapsedMinutes(session.startedAt, pauseEvents)
+      totalElapsedMinutes +=
+        session.status === "completed"
+          ? calculateElapsedMinutes(session.startedAt, pauseEvents, session.endedAt)
+          : calculateElapsedMinutes(session.startedAt, pauseEvents)
     }
 
     return {
