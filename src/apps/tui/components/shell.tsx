@@ -2,10 +2,11 @@ import { Box, Text, useStdout } from "ink"
 import BigText from "ink-big-text"
 
 interface ShellProps {
+  footerText?: string
   children: React.ReactNode
 }
 
-export function Shell({ children }: ShellProps) {
+export function Shell({ footerText, children }: ShellProps) {
   const { stdout } = useStdout()
 
   const terminalHeight = stdout.rows
@@ -38,7 +39,7 @@ export function Shell({ children }: ShellProps) {
         borderBottom={false}
       >
         <Text dimColor color="gray">
-          Press 'q', 'x', or 'Esc' to exit.
+          {footerText ?? "Press 'q', 'x', or 'Esc' to exit."}
         </Text>
       </Box>
     </Box>

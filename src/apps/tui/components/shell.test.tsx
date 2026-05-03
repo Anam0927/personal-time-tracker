@@ -27,3 +27,14 @@ it("renders children", async () => {
   )
   expect(app.lastFrame()).toContain("test child")
 })
+
+it("renders custom footer text when provided", async () => {
+  const { Shell } = await import(`./shell.tsx?test=${Math.random()}`)
+  const app = render(
+    <Shell footerText="Custom footer">
+      <Box />
+    </Shell>,
+  )
+  expect(app.lastFrame()).toContain("Custom footer")
+  expect(app.lastFrame()).not.toContain("Press 'q', 'x', or 'Esc' to exit.")
+})

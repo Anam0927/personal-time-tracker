@@ -1,18 +1,28 @@
-import { afterEach, expect, it } from "bun:test"
+import { afterAll, afterEach, beforeAll, expect, it } from "bun:test"
+
 import type { Kysely } from "kysely"
 
 import type { DB } from "@/lib/db/types"
-import { createTestDb } from "@/tests/test-helper"
 import { cleanup, render } from "@/tests/mocks/tty"
+import { createTestDb } from "@/tests/test-helper"
 
 const bunPath = process.execPath
 
 let db: Kysely<DB>
 let cleanupDb: () => void
 
+beforeAll(async () => {
+  const ctx = await createTestDb()
+  db = ctx.db
+  cleanupDb = ctx.cleanup
+})
+
+afterAll(() => {
+  cleanupDb()
+})
+
 afterEach(() => {
   cleanup()
-  if (cleanupDb) cleanupDb()
 })
 
 const createTerminal = () =>
@@ -21,17 +31,42 @@ const createTerminal = () =>
     rows: 24,
   })
 
-it("renders the TUI with shell", async () => {
-  const ctx = await createTestDb()
-  db = ctx.db
-  cleanupDb = ctx.cleanup
-
+it("renders dashboard footer in default view", async () => {
   const { TuiShell } = await import(`./app.tsx?test=${Math.random()}`)
   const app = render(<TuiShell db={db} />)
   await app.waitUntilRenderFlush()
 
-  // BigText renders as ASCII art (no plain text "Time Tracker")
-  expect(app.lastFrame()).toContain("Press 'q', 'x', or 'Esc' to exit.")
+  // Dashboard view footer should show Tab hint
+  expect(app.lastFrame()).toContain("Press Tab to browse projects")
+})
+
+it("switches to browser view when Tab is pressed", async () => {
+  const { TuiShell } = await import(`./app.tsx?test=${Math.random()}`)
+  const app = render(<TuiShell db={db} />)
+  await app.waitUntilRenderFlush()
+
+  // Simulate Tab key press via stdin
+  app.stdin.write("\t")
+  await app.waitUntilRenderFlush()
+
+  // Should now show browser navigation hint
+  expect(app.lastFrame()).toContain("↑↓/jk: Navigate")
+})
+
+it("switches back to dashboard when Tab is pressed again", async () => {
+  const { TuiShell } = await import(`./app.tsx?test=${Math.random()}`)
+  const app = render(<TuiShell db={db} />)
+  await app.waitUntilRenderFlush()
+
+  // Tab to browser
+  app.stdin.write("\t")
+  await app.waitUntilRenderFlush()
+
+  // Tab back to dashboard
+  app.stdin.write("\t")
+  await app.waitUntilRenderFlush()
+
+  expect(app.lastFrame()).toContain("Press Tab to browse projects")
 })
 
 it("quits normally when 'q' is pressed", async () => {
