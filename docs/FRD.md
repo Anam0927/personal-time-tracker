@@ -1,589 +1,810 @@
 # Functional Requirements Document (FRD)
-
-## Personal CLI + TUI Time Tracker for Omarchy
+## Multi-Device Personal Time Tracker for Linux and Mac
 
 ## 1. Overview
+This document defines the functional requirements for a **personal time-tracking system** used across **two device types: a main Linux machine and a Mac**. The system will provide a **CLI + TUI client** on both devices, backed by a shared **API** and **Neon Postgres database**. The application is intended for **single-user personal use only**.
 
-This document defines the requirements for a **personal-use time tracking tool** designed for **Omarchy**. The product will be a **CLI + TUI application** built with **Bun**, storing data locally in **SQLite**, and working **fully offline**.
+The system must support:
+- tracking time by **client + project**
+- optional **notes and tags**
+- one **active timer** at a time
+- **device ownership** of the active timer
+- **ownership transfer**
+- per-device activity detection and prompts
+- **suspend/resume** behavior on the owner device
+- per-entry threshold reminders
+- reports across clients, projects, and devices
 
-The tool is meant to help track time across multiple **clients and projects**, while making switching between projects fast and safe. It must also react to **system suspend/resume**, and notify the user when time spent on a specific entry crosses a configured threshold.
+The TUI is a first-class requirement in v1. Python is an acceptable implementation language for both the client and backend, and FastAPI provides built-in patterns for token-style API key auth while Textual provides a Python TUI framework with app/screen architecture and notifications support. Textual also documents that apps can run over SSH, which is useful for future flexibility even though SSH-specific detection is currently out of scope. ([fastapi.tiangolo.com](https://fastapi.tiangolo.com/de/reference/security/?utm_source=openai))
 
-The desktop notification portion should rely on the Linux desktop notification system, which is commonly exposed over the `org.freedesktop.Notifications` D-Bus interface; `notify-send` is a typical CLI entry point for that behavior on Linux. ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
+---
 
-## 2. Goals
+## 2. Product Goals
 
-- Track time locally for **client + project** combinations.
-- Provide a **CLI** for fast commands and a **TUI** for interactive use.
-- Ensure only **one active timer** runs at a time.
-- Automatically **pause on suspend**.
-- Automatically **resume after wake only if sleep duration was short**.
-- Repeatedly notify the user after a configured time threshold is reached for a running entry.
-- Support useful reporting for:
-  - **today**
-  - **this week**
-  - **by client**
-  - **by project**
-- Support **notes/tags** on entries.
-- Work **fully offline**.
-- Persist all data in **SQLite**.
-- Support **Omarchy only** for v1.
+### Primary goals
+- Provide a **single personal time-tracking system** usable from both Linux and Mac.
+- Make switching between projects fast and safe.
+- Ensure only **one timer** is active globally.
+- Support **device-aware ownership** of the active timer.
+- Allow another device to **view**, **stop/switch**, or **take ownership** of the timer.
+- Prompt before ownership-affecting actions when another device owns the timer.
+- Detect inactivity on the **owner device**, prompt the user, and auto-pause if no response is received.
+- Pause on **suspend** and conditionally resume after wake if sleep was short.
+- Send reminder notifications after entry thresholds are reached.
+- Provide a usable **CLI and TUI** in v1.
+- Keep the tool easy enough to use consistently.
+
+### Success criteria
+The project is worth building only if it remains:
+- fast to access
+- low-friction
+- trustworthy
+- easier to use consistently than the current workaround tools
+
+---
 
 ## 3. Non-Goals
+The following are out of scope for v1:
 
-- Team collaboration or multi-user support.
-- Cloud sync.
-- Manual time entry editing in v1.
-- Billing/invoicing workflows in v1.
-- Cross-platform support outside Omarchy.
-- Multiple simultaneous timers.
+- multi-user/team support
+- full SSH-specific activity heuristics
+- browser/PWA client
+- offline-first sync
+- native mobile apps
+- invoicing/billing integrations
+- calendar/task-manager integrations
+- advanced manual time correction such as merge/split sessions
+- cloud collaboration
+- role-based permissions
 
-## 4. Assumptions and Constraints
+---
 
-- The application is intended for a **single user on a single machine**.
-- The app will be developed using **Bun**.
-- Data storage will use **SQLite**.
-- Notifications should support:
-  - desktop notification
-  - sound
-  - terminal message
-- Linux notifications may depend on the active desktop session and notification daemon. The Freedesktop notification spec defines the standard notification service model, and `notify-send` is a common mechanism to trigger notifications in user sessions. ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
-- Suspend/resume detection will likely rely on Linux session/system interfaces such as systemd/logind or related D-Bus events, which are standard approaches on Linux systems. ([askubuntu.com](https://askubuntu.com/questions/1354167/systemd-dbus-interfaces-for-suspend-and-resume-notification?utm_source=openai))
-
-## 5. Users
+## 4. Users
 
 ### Primary user
+- One individual user operating across:
+  - a **main Linux machine**
+  - a **Mac**
+- The same user may switch devices during the day.
+- The same user may want to inspect and control the same active timer from either device.
 
-- A single freelance developer working across multiple clients/projects during the day.
+---
 
-## 6. Functional Scope
+## 5. Product Scope
 
-The system must provide the following major capabilities:
+The system includes:
 
-1. Manage clients and projects
-2. Start/stop/switch timers
-3. Detect suspend and resume behavior
-4. Notify on elapsed threshold per running entry
-5. Show current status
-6. Generate time reports
-7. Store local persistent history
-8. Support entry notes/tags
-9. Recover safely after interruption/restart
+### Client applications
+- CLI on Linux
+- CLI on Mac
+- TUI on Linux
+- TUI on Mac
+
+### Shared backend
+- API layer
+- Neon Postgres database
+
+### System capabilities
+- authentication via simple token
+- device registration and identification
+- timer ownership model
+- time tracking and switching
+- activity prompts and auto-pause
+- suspend/resume handling
+- threshold reminders
+- reporting
+- audit/history logging
+
+---
+
+## 6. Core Concepts
+
+### 6.1 Timer
+A timer represents the currently active work session.
+
+### 6.2 Session
+A session is a tracked work interval tied to:
+- one client
+- one project
+- optional notes
+- optional tags
+
+### 6.3 Device
+A device is a named client installation, such as:
+- `linux-main`
+- `mac-neo`
+
+### 6.4 Owner device
+The **owner device** is the device currently responsible for the active timer’s automatic behaviors, including:
+- inactivity prompts
+- auto-pause logic
+- suspend/resume handling
+- threshold notification delivery
+
+### 6.5 Ownership transfer
+Ownership may move from one device to another through explicit user action.
 
 ---
 
 ## 7. User Stories
 
-- As a user, I want to **start tracking time** for a client/project quickly from the terminal.
-- As a user, I want switching to another project to **automatically stop the current timer and start the new one**.
-- As a user, I want the timer to **pause when the laptop suspends** so sleep time is not counted as work.
-- As a user, I want the timer to **resume automatically only if the laptop was asleep for a short time**.
-- As a user, I want the app to **restore the active timer state after restart/crash**.
-- As a user, I want to receive repeated reminders every **5 minutes after crossing a set threshold** like 4 hours.
-- As a user, I want thresholds to be configurable **per entry**.
-- As a user, I want to see totals for **today**, **this week**, **by client**, and **by project**.
-- As a user, I want to attach **notes/tags** to tracked work sessions.
-- As a user, I want to use the tool **offline** with local-only storage.
+- As a user, I want to start a timer on Linux or Mac and see the same active session from either device.
+- As a user, I want only one global timer to exist at a time.
+- As a user, I want switching projects to automatically stop the current timer and start the new one.
+- As a user, I want the system to know which device currently owns the active timer.
+- As a user, I want another device to be able to view, stop, switch, or take ownership of the timer.
+- As a user, I want the system to ask for confirmation before interrupting a timer owned by another device.
+- As a user, I want inactivity on the owner device to trigger a prompt first, then auto-pause if I do not respond.
+- As a user, I want suspend on the owner device to pause the timer.
+- As a user, I want the timer to resume only if wake happens after a short sleep of 2 minutes or less.
+- As a user, I want per-entry reminders after a threshold, repeating every 10 minutes.
+- As a user, I want device-local notifications on the owner device.
+- As a user, I want reports by day, week, client, project, and device.
+- As a user, I want a history of ownership changes and major timer events so I can trust what happened.
 
 ---
 
 ## 8. Functional Requirements
 
-### FR-1: Client management
+## FR-1: Single-user authentication
+The system shall support a **single user account** authenticated through a **simple token**.
 
-The system shall allow the user to create, view, list, and archive clients.
+### Acceptance criteria
+- The client can authenticate using a configured token.
+- Requests without a valid token are rejected.
+- The system does not require username/password flows in v1.
 
-#### Acceptance criteria
-
-- User can create a client with a unique name.
-- User can list all active clients.
-- Archived clients are hidden from default lists but preserved in history.
-- Existing time entries remain linked to archived clients.
-
----
-
-### FR-2: Project management
-
-The system shall allow the user to create, view, list, and archive projects under a client.
-
-#### Acceptance criteria
-
-- A project must belong to exactly one client.
-- User can list projects by client.
-- Archived projects cannot be started for new tracking unless explicitly restored.
-- Historical entries remain readable in reports.
+FastAPI provides built-in support for API key patterns including header-based API keys, which aligns with a simple token approach. ([fastapi.tiangolo.com](https://fastapi.tiangolo.com/de/reference/security/?utm_source=openai))
 
 ---
 
-### FR-3: Time entry model
+## FR-2: Device registration and identity
+The system shall support named devices.
 
-The system shall track time against a **client + project** pair.
+### Acceptance criteria
+- Each client installation can be registered with a device name.
+- Device names are visible in status, reports, and history.
+- The system records the device associated with each relevant action.
 
-Each tracked session should include:
+### Example device names
+- `linux-main`
+- `mac-neo`
 
-- entry ID
+---
+
+## FR-3: Client management
+The system shall allow creation, listing, viewing, and archiving of clients.
+
+### Acceptance criteria
+- A client has a unique name per user.
+- Archived clients remain available in historical reports.
+- Archived clients are hidden from default active selections.
+
+---
+
+## FR-4: Project management
+The system shall allow creation, listing, viewing, and archiving of projects.
+
+### Acceptance criteria
+- A project belongs to one client.
+- Projects can be listed by client.
+- Archived projects remain available historically.
+- Archived projects cannot be newly started unless restored.
+
+---
+
+## FR-5: Session model
+The system shall store tracked sessions with:
 - client
 - project
-- start timestamp
-- end timestamp
-- duration
-- status
-- optional notes
+- optional note
 - optional tags
-- threshold configuration for reminders
+- device metadata
+- threshold configuration
+- ownership metadata
+- lifecycle state
 
-#### Acceptance criteria
-
-- Each session is associated with one client and one project.
-- Notes/tags can be attached when starting or updating a session.
-- Session data is persisted in SQLite.
-
----
-
-### FR-4: Start timer
-
-The system shall allow the user to start a timer for a chosen client/project entry.
-
-#### Acceptance criteria
-
-- Starting a timer creates an active session with a start timestamp.
-- If no threshold is specified, the default threshold behavior is applied or left unset based on configuration.
-- The system must reject invalid client/project references.
+### Acceptance criteria
+- Every session belongs to one client and one project.
+- Notes and tags are optional.
+- Session records are stored in the database.
+- Device/action metadata is retained.
 
 ---
 
-### FR-5: Stop timer
+## FR-6: Start timer
+The system shall allow the user to start a timer for a selected client and project.
 
-The system shall allow the user to stop the currently running timer.
-
-#### Acceptance criteria
-
-- Stopping a timer records the end timestamp.
-- Duration is computed from active tracked time only.
-- Once stopped, the session is persisted as completed.
-
----
-
-### FR-6: Switch timer
-
-The system shall allow the user to start a new timer while another timer is active, and it must automatically **stop the current timer and start the new one**.
-
-#### Acceptance criteria
-
-- Only one timer may be active at any time.
-- Starting a new timer while another is active automatically ends the previous one first.
-- The switch operation should preserve both entries correctly with no overlap.
+### Acceptance criteria
+- Starting a timer creates a new active session.
+- The starting device becomes the owner device.
+- Optional note/tags may be supplied.
+- Optional threshold may be supplied.
+- If another timer is active, the system uses switch behavior rather than creating parallel timers.
 
 ---
 
-### FR-7: Single active timer rule
+## FR-7: Stop timer
+The system shall allow the user to stop the active timer.
 
-The system shall enforce a rule that there can be **only one active timer** at a time.
-
-#### Acceptance criteria
-
-- The database and app logic must prevent multiple concurrent active timers.
-- Any attempted violation must fail safely or be auto-resolved using the switch behavior.
-
----
-
-### FR-8: Suspend handling
-
-The system shall detect when the laptop enters suspend and **pause** the active timer.
-
-#### Acceptance criteria
-
-- If a timer is active during suspend, the session changes to paused state.
-- Sleep time must not be included in tracked work duration.
-- A pause event must be recorded in persistent state so the app can recover correctly after restart if needed.
-
-Linux suspend/resume observation is typically implemented through systemd/logind or related D-Bus interfaces. ([askubuntu.com](https://askubuntu.com/questions/1354167/systemd-dbus-interfaces-for-suspend-and-resume-notification?utm_source=openai))
+### Acceptance criteria
+- Stopping a timer sets an end time.
+- Stop events record which device initiated the stop.
+- The active timer is cleared globally.
+- If the timer is owned by another device, the system prompts for confirmation before stopping.
 
 ---
 
-### FR-9: Resume after wake
+## FR-8: Switch timer
+The system shall allow the user to switch from the current active session to a new one.
 
-The system shall detect wake events and **resume the paused timer only if the sleep duration was short**.
-
-#### Open configuration item
-
-The FRD requires a configurable **short sleep threshold** value, for example:
-
-- 1 minute
-- 5 minutes
-- 10 minutes
-- custom value
-
-#### Acceptance criteria
-
-- On wake, the app calculates sleep duration.
-- If sleep duration is less than or equal to the configured short-sleep threshold, the previously paused timer resumes automatically.
-- If sleep duration exceeds the threshold, the timer remains paused.
-- The user must be able to inspect whether the timer auto-resumed or stayed paused.
+### Acceptance criteria
+- Switching automatically stops the current session and starts a new one.
+- The new session becomes active immediately.
+- The initiating device becomes the owner device after the switch.
+- If another device owns the current timer, the system prompts for confirmation before switching.
 
 ---
 
-### FR-10: Crash/restart recovery
+## FR-9: Single active timer rule
+The system shall enforce exactly one active global timer at a time.
 
-The system shall restore the active timer state when the application is relaunched after an interruption.
-
-#### Acceptance criteria
-
-- If the app exits unexpectedly while a timer is active, the state is recoverable from SQLite.
-- On next launch, the app restores the active timer state.
-- If suspend occurred before interruption, the restored state must remain consistent with pause/resume logic.
-- Recovery must avoid duplicate active sessions.
+### Acceptance criteria
+- No two sessions can both be active simultaneously.
+- Concurrent actions from different devices are resolved safely by the backend.
+- The API is the source of truth for active session state.
 
 ---
 
-### FR-11: Threshold notifications per entry
+## FR-10: Ownership model
+The system shall maintain explicit ownership of the active timer.
 
-The system shall support reminder thresholds configured **per entry**.
-
-#### Acceptance criteria
-
-- A user can set a threshold such as 4 hours on a tracked entry.
-- Threshold value is stored with the running session or its configuration.
-- Different entries may have different thresholds.
-
----
-
-### FR-12: Repeating notifications after threshold
-
-The system shall repeatedly notify the user every **5 minutes** after the configured threshold has been crossed, until the timer is stopped, switched, or the reminders are dismissed/disabled for that entry.
-
-#### Acceptance criteria
-
-- First alert is triggered when elapsed tracked time reaches threshold.
-- Additional alerts repeat every 5 minutes while the timer remains active.
-- Repeated alerts stop immediately when the session stops or switches.
-- The system should avoid duplicate notifications for the same reminder window.
-
-Linux desktop notifications are generally delivered through the Freedesktop notification service over D-Bus. ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
+### Acceptance criteria
+- Every active timer has one owner device.
+- Ownership is visible in status output and TUI views.
+- Ownership determines which device performs inactivity and suspend/resume automation.
+- Ownership changes are recorded.
 
 ---
 
-### FR-13: Notification channels
+## FR-11: Ownership transfer
+The system shall support explicit ownership transfer between devices.
 
-The system shall support all of the following notification channels:
-
-- desktop notification
-- sound
-- terminal output
-
-#### Acceptance criteria
-
-- A threshold alert produces a desktop notification in the active desktop session.
-- A threshold alert produces a terminal-visible message when running interactively.
-- A threshold alert can optionally trigger a sound.
-- Notification delivery failures should not crash the app.
-
-The Freedesktop desktop notification spec defines a session-scoped notification service, and `notify-send` is a common Linux utility for posting such notifications. ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
+### Acceptance criteria
+- A device can request to take ownership of the active timer.
+- If another device owns the timer, the system prompts for confirmation before transfer.
+- Successful transfer updates the owner device immediately.
+- Ownership transfer is logged in history.
 
 ---
 
-### FR-14: CLI interface
+## FR-12: Cross-device control
+The system shall allow another device to:
+- view the active timer
+- stop the active timer
+- switch the active timer
+- take ownership of the timer
 
-The system shall provide a command-line interface for non-interactive and scriptable usage.
-
-#### Minimum commands
-
-- `start`
-- `stop`
-- `switch`
-- `status`
-- `report today`
-- `report week`
-- `report client`
-- `report project`
-- `clients`
-- `projects`
-
-#### Acceptance criteria
-
-- Commands work without the TUI.
-- Commands return readable output for terminal use.
-- Commands return non-zero exit codes on failure.
-- Commands are suitable for shell aliases and scripts.
+### Acceptance criteria
+- Cross-device actions are allowed for the authenticated user.
+- Potentially disruptive actions require confirmation when initiated from a non-owner device.
+- The result of the action is reflected across clients on refresh.
 
 ---
 
-### FR-15: TUI interface
+## FR-13: Inactivity detection by owner device
+The system shall support activity/inactivity detection on the owner device only.
 
-The system shall provide a terminal user interface for interactive management.
+### Acceptance criteria
+- Only the owner device may trigger automatic inactivity workflows.
+- Inactivity detection is device-scoped, not global.
+- The non-owner device does not auto-pause the active timer.
 
-#### TUI should support
-
-- viewing current active timer
-- starting/stopping/switching timers
-- browsing clients/projects
-- viewing recent sessions
-- viewing reports
-- setting or viewing notes/tags
-- showing reminder threshold status
-
-#### Acceptance criteria
-
-- The TUI can be launched from a single command.
-- The TUI shows the currently active timer prominently.
-- The TUI allows switching without needing raw SQL or manual file edits.
+### Design note
+Because Linux and Mac expose different local activity signals, the implementation may vary by platform. The FRD intentionally defines behavior at the feature level rather than mandating one single cross-platform mechanism.
 
 ---
 
-### FR-16: Status view
+## FR-14: Prompt before auto-pause
+The system shall prompt the user on the owner device when inactivity is detected.
 
-The system shall provide a status command/view showing the active timer state.
-
-#### Acceptance criteria
-
-- If a timer is active, status shows:
-  - client
-  - project
-  - start time
-  - elapsed active duration
-  - threshold/reminder status
-  - note/tags if present
-- If no timer is active, status states that clearly.
+### Acceptance criteria
+- The user receives a local prompt asking whether they are still working.
+- If the user confirms, the session remains active.
+- If the user does not respond within the configured grace period, the timer is auto-paused.
+- Prompt and timeout events are recorded.
 
 ---
 
-### FR-17: Reporting
+## FR-15: Auto-pause after unanswered prompt
+The system shall auto-pause the active timer when an inactivity prompt is unanswered.
 
+### Acceptance criteria
+- Auto-pause occurs only after a prompt has been issued.
+- Auto-pause records the reason and triggering device.
+- Paused time is excluded from tracked duration totals.
+
+---
+
+## FR-16: Suspend handling
+The system shall pause the active timer when the **owner device** suspends.
+
+### Acceptance criteria
+- Suspend on a non-owner device does not automatically pause the timer.
+- Suspend on the owner device triggers a pause event.
+- The pause reason is recorded as suspend.
+
+---
+
+## FR-17: Wake handling
+The system shall detect wake on the owner device and handle timer resumption conditionally.
+
+### Acceptance criteria
+- If sleep duration is **2 minutes or less**, the system may resume automatically.
+- If sleep duration is greater than 2 minutes, the timer remains paused.
+- If another device becomes active during that time, the system asks before resuming.
+- Wake-related actions are logged.
+
+---
+
+## FR-18: Ask before conflicting resume behavior
+The system shall ask before automatic resume in conflict cases.
+
+### Acceptance criteria
+- If the owner device wakes but another device has intervened, the system does not silently resume.
+- The user is asked what to do if the ownership or active-session state changed during sleep.
+
+---
+
+## FR-19: Threshold reminders
+The system shall support reminder thresholds configured per entry.
+
+### Acceptance criteria
+- A session can specify a threshold such as 4 hours.
+- Thresholds are stored with the session.
+- Different sessions may use different thresholds.
+
+---
+
+## FR-20: Repeating reminders
+The system shall send repeated reminders every **10 minutes** after the threshold has been reached, while the session remains active.
+
+### Acceptance criteria
+- The first reminder is sent when tracked active time reaches the threshold.
+- Follow-up reminders occur every 10 minutes.
+- Reminders stop when the session stops, switches, or pauses.
+- Duplicate reminders for the same reminder window are prevented.
+
+---
+
+## FR-21: Notification delivery
+The system shall deliver reminders and prompts as **device-local notifications** on the owner device.
+
+### Acceptance criteria
+- Notifications are shown on the device responsible for the active timer.
+- The notification mechanism may be platform-specific.
+- Notification delivery failures do not crash the app.
+
+Textual includes notification support within the app framework, which can be useful for TUI-level alerts, though OS-native notification plumbing may still require platform-specific implementation. ([textual.textualize.io](https://textual.textualize.io/api/app/?utm_source=openai))
+
+---
+
+## FR-22: Reports
 The system shall provide reports for:
-
 - today
 - this week
 - by client
 - by project
+- by device
 
-#### Acceptance criteria
-
-- `today` shows total tracked time for the current day.
-- `this week` shows total tracked time for the current week.
-- `by client` aggregates durations by client.
-- `by project` aggregates durations by project.
-- Reports exclude sleep time and paused time from totals.
-
----
-
-### FR-18: Notes and tags
-
-The system shall allow notes and tags on entries.
-
-#### Acceptance criteria
-
-- A note may be attached to a session.
-- One or more tags may be attached to a session.
-- Notes/tags must be visible in session detail and available for future reporting extensions.
+### Acceptance criteria
+- Reports are available via CLI and TUI.
+- Report totals exclude paused durations.
+- Reports can show source device information.
+- Aggregation is accurate across devices.
 
 ---
 
-### FR-19: Local persistence
+## FR-23: Status view
+The system shall provide a current status view.
 
-The system shall store all application data locally in **SQLite**.
+### Acceptance criteria
+If a timer is active, status must show:
+- client
+- project
+- note/tags if present
+- elapsed tracked time
+- threshold/reminder status
+- owner device
+- started-by device
+- current lifecycle state
 
-#### Acceptance criteria
-
-- Clients, projects, sessions, pause/resume events, thresholds, and metadata are persisted in SQLite.
-- The application can restart without losing saved history.
-- Database file location must be deterministic and documented.
-
-Bun supports SQLite through its runtime APIs and ecosystem; exact implementation choice should be validated against the Bun version selected for the project. Since Bun evolves over time, the implementation should be pinned to a specific Bun release during development. ([linuxconfig.org](https://linuxconfig.org/how-to-send-desktop-notifications-using-notify-send?utm_source=openai))
+If no timer is active, status must say so clearly.
 
 ---
 
-### FR-20: Offline operation
+## FR-24: Recent sessions view
+The system shall provide access to recent sessions.
 
-The system shall function fully offline.
+### Acceptance criteria
+- Recent sessions are visible in CLI and/or TUI.
+- Sessions can display note, tags, device, and duration.
+- Paused/auto-paused states are visible.
 
-#### Acceptance criteria
+---
 
-- Starting/stopping/switching/reporting must not require network access.
-- No cloud dependency is required for core features.
-- The app remains usable when disconnected from the internet.
+## FR-25: Ownership history
+The system shall provide visibility into ownership changes and key lifecycle events.
+
+### Acceptance criteria
+- The system records:
+  - start
+  - stop
+  - switch
+  - pause
+  - resume
+  - ownership transfer
+  - inactivity prompt
+  - prompt timeout
+  - auto-pause
+  - suspend
+  - wake
+- History can be inspected from the client.
+- Event entries include timestamp and device.
+
+---
+
+## FR-26: Limited manual editing
+The system shall support **limited manual editing** in v1.
+
+### Scope of limited editing
+Recommended v1 scope:
+- edit notes on a session
+- edit tags on a session
+- optionally delete the most recent session
+- no editing of start/end timestamps in v1
+- no merge/split in v1
+
+### Acceptance criteria
+- Notes/tags can be updated after session completion.
+- Manual editing is restricted to approved editable fields.
+- All edits are auditable.
+
+---
+
+## FR-27: CLI
+The system shall provide a scriptable CLI.
+
+### Minimum commands
+- `track start`
+- `track stop`
+- `track switch`
+- `track status`
+- `track report today`
+- `track report week`
+- `track report client`
+- `track report project`
+- `track report device`
+- `track devices list`
+- `track device status`
+- `track device claim`
+- `track tui`
+
+### Acceptance criteria
+- Commands are human-friendly and shell-friendly.
+- Commands return useful exit codes.
+- Commands work on Linux and Mac.
+
+---
+
+## FR-28: TUI
+The system shall provide a TUI in v1.
+
+### TUI capabilities
+- current timer dashboard
+- client/project browsing
+- start/stop/switch
+- device status
+- ownership transfer
+- recent sessions
+- reports
+- prompts and reminders
+- history view
+
+### Acceptance criteria
+- The TUI can be launched from a single command.
+- The active session and current owner device are obvious.
+- Common daily actions can be completed without leaving the TUI.
+
+Textual supports app/screen-based terminal interfaces and a built-in command palette, which is a good fit for a Python TUI with multiple views. ([textual.textualize.io](https://textual.textualize.io/?utm_source=openai))
+
+---
+
+## FR-29: Backend API
+The system shall provide a backend API as the source of truth for business logic.
+
+### Acceptance criteria
+- Clients do not write directly to the database.
+- The API enforces:
+  - single active timer rule
+  - ownership logic
+  - confirmation rules
+  - session lifecycle validation
+- The API is stateless with persistent storage in Neon Postgres.
+
+---
+
+## FR-30: Database
+The system shall persist shared state in Neon Postgres.
+
+### Acceptance criteria
+- All persistent tracking data is stored centrally.
+- The backend supports concurrent requests from multiple devices.
+- The schema supports event history and ownership metadata.
+
+Neon provides hosted Postgres, which fits the API-plus-database design and avoids direct SQLite file syncing across devices. ([neon.tech](https://neon.tech/pdf/DPA.pdf?utm_source=openai))
 
 ---
 
 ## 9. Non-Functional Requirements
 
-### NFR-1: Performance
+### NFR-1: Usability
+The system must be easy enough to use consistently.
+- Core commands should be short.
+- The TUI should be keyboard-first.
+- The most common action path should take minimal steps.
 
-- Common CLI commands should feel near-instant for normal personal usage.
-- Report generation should be fast for a single-user local dataset.
+### NFR-2: Trustworthiness
+The user must be able to understand why the timer is in its current state.
+- ownership must be visible
+- prompts and auto-pauses must be logged
+- suspend/wake effects must be inspectable
 
-### NFR-2: Reliability
+### NFR-3: Reliability
+- the backend must prevent duplicate active timers
+- event ordering must remain consistent
+- failed client actions must not corrupt global state
 
-- The tool must not lose completed session data during normal usage.
-- Unexpected shutdowns should not corrupt the active timer state irrecoverably.
+### NFR-4: Performance
+- status and common commands should feel fast
+- reports should load quickly for a personal dataset
 
-### NFR-3: Simplicity
+### NFR-5: Cross-platform support
+- v1 supports Linux and Mac clients
+- platform-specific activity/notification mechanisms may differ
+- business behavior must remain consistent
 
-- Commands should be short and memorable.
-- TUI navigation should be keyboard-first.
-
-### NFR-4: Maintainability
-
-- Code should be modular enough to separate:
-  - tracking logic
-  - persistence
-  - notification handling
-  - suspend/resume integration
-  - CLI/TUI presentation
-
-### NFR-5: Omarchy compatibility
-
-- v1 only needs to support Omarchy.
-- Omarchy-specific assumptions may be used where needed for notification and suspend/resume integration.
+### NFR-6: Security
+- token-based auth must be supported
+- secrets must not be hard-coded
+- clients must store tokens safely enough for personal use
 
 ---
 
-## 10. Suggested CLI Commands
+## 10. Suggested Architecture
 
-These are suggested examples, not final syntax.
+## Client
+- Python CLI
+- Python TUI using Textual
+- local config for:
+  - token
+  - device name
+  - API URL
+  - platform-specific notification settings
 
-```bash
-track start --client "Acme" --project "Dashboard"
-track start --client "Acme" --project "Dashboard" --note "Bug fixes" --tags bugfix,frontend --threshold 4h
-track stop
-track switch --client "Beta" --project "API"
-track status
-track report today
-track report week
-track report client
-track report project
-track tui
-track clients add "Acme"
-track projects add --client "Acme" "Dashboard"
-```
+## Backend
+- Python API using FastAPI
+- business logic enforcement at API layer
+- Neon Postgres as system of record
+
+## Services / modules
+- auth
+- devices
+- sessions
+- ownership
+- reminders
+- inactivity
+- suspend/wake integration
+- reports
+- audit/history
 
 ---
 
 ## 11. Suggested Data Model
 
-### Tables
+### users
+- id
+- token_hash
+- created_at
 
-- `clients`
-- `projects`
-- `sessions`
-- `session_tags`
-- `pause_events`
-- `app_state`
-- `notification_events`
+### devices
+- id
+- user_id
+- name
+- platform
+- last_seen_at
+- is_active
+- created_at
 
-### Key entities
+### clients
+- id
+- user_id
+- name
+- archived_at
+- created_at
 
-- **clients**: id, name, archived_at
-- **projects**: id, client_id, name, archived_at
-- **sessions**: id, client_id, project_id, start_at, end_at, status, note, threshold_minutes
-- **pause_events**: id, session_id, paused_at, resumed_at, reason
-- **notification_events**: id, session_id, threshold_reached_at, notification_sent_at, notification_type
+### projects
+- id
+- client_id
+- name
+- archived_at
+- created_at
 
----
+### sessions
+- id
+- user_id
+- client_id
+- project_id
+- note
+- threshold_minutes
+- reminder_interval_minutes
+- status
+- owner_device_id
+- started_by_device_id
+- stopped_by_device_id
+- start_at
+- end_at
+- created_at
+- updated_at
 
-## 12. Edge Cases
+### session_tags
+- id
+- session_id
+- tag
 
-The system should define behavior for the following cases:
+### pauses
+- id
+- session_id
+- paused_at
+- resumed_at
+- reason
+- device_id
 
-1. **Start command issued for same active client/project**
-   - Option: ignore, warn, or restart timer
-   - Recommended v1: warn and keep current timer active
+### prompts
+- id
+- session_id
+- device_id
+- prompt_type
+- shown_at
+- responded_at
+- response
+- timeout_at
 
-2. **Wake occurs but app was not running in foreground**
-   - Background monitoring component or startup recovery logic should reconcile state
-
-3. **Notification daemon unavailable**
-   - Fall back to terminal output and/or sound failure-safe behavior
-
-4. **Very long sleep**
-   - Timer remains paused after wake
-
-5. **Database locked/corrupt**
-   - Show clear error; do not silently lose time
-
-6. **Archived project previously active**
-   - Historical report remains intact; project cannot be newly started
-
-7. **Threshold changed mid-session**
-   - New threshold should apply from time of change or entire session based on implementation decision
-   - Recommended v1: apply immediately using total elapsed active time
-
----
-
-## 13. Open Decisions
-
-These items still need explicit definition before implementation:
-
-1. **What counts as a “short sleep”?**
-   - Suggested default: **5 minutes**
-2. **Should repeating notifications be dismissible for the current session?**
-   - Recommended: yes
-3. **Should sound alerts be configurable on/off?**
-   - Recommended: yes
-4. **Should tags be free-text or from a saved preset list?**
-   - Recommended v1: free-text
-5. **Should reports show currently running session separately from completed sessions?**
-   - Recommended: yes
-
----
-
-## 14. Acceptance Summary
-
-The product will be considered acceptable for v1 when:
-
-- User can manage clients and projects locally.
-- User can start, stop, and switch timers from CLI and TUI.
-- Only one timer can run at a time.
-- Active timer pauses on suspend.
-- Timer resumes on wake only when sleep duration is below a configurable threshold.
-- Active timer state is restorable after restart/crash.
-- Per-entry threshold reminders work.
-- Reminder repeats every 5 minutes after threshold is crossed.
-- Alerts are delivered through desktop notification, terminal output, and sound where available.
-- Reports exist for today, this week, by client, and by project.
-- Notes/tags are supported.
-- All data is stored in SQLite.
-- Core usage works fully offline on Omarchy.
+### event_log
+- id
+- session_id
+- device_id
+- event_type
+- payload
+- created_at
 
 ---
 
-## 15. Recommended v1 Architecture
+## 12. Open Decisions
+These are still implementation decisions, not product blockers:
 
-Since you asked for “everything,” here is a practical implementation direction.
+1. **Network unavailable behavior**
+   - not yet defined
+   - recommend: read-only status + clear error for write actions in v1
 
-### Core modules
+2. **Confirmation UX**
+   - command-line prompt
+   - TUI modal/dialog
+   - both
 
-- **CLI layer**: command parsing and scriptable commands
-- **TUI layer**: interactive terminal UI
-- **Timer engine**: active session management
-- **Persistence layer**: SQLite access
-- **System integration layer**:
-  - suspend detection
-  - wake detection
-  - notifications
-  - sound
-- **Reporting layer**: aggregated queries for day/week/client/project
+3. **How inactivity is detected on Linux vs Mac**
+   - implementation-specific
+   - should be abstracted behind a client-side activity service
 
-### Process model
+4. **How long the inactivity prompt grace period should be**
+   - recommend default: 1–2 minutes
 
-Recommended v1:
-
-- one main app
-- plus a lightweight background watcher/service for:
-  - suspend/wake handling
-  - threshold reminders
-
-A session-scoped Linux notification approach is the safest fit because desktop notifications are generally exposed via the user session’s D-Bus notification service. ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
+5. **Whether deleting the most recent session is included in limited editing**
+   - recommended: yes
 
 ---
 
-## Interesting Findings:
+## 13. Rollout Phases
 
-- The biggest implementation risk is **not** SQLite or CLI/TUI — it is **Linux session integration**, especially making notifications work reliably from background processes after suspend/resume. Linux notifications are session-scoped and depend on the desktop notification service exposed over D-Bus. ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
-- Your feature set is very realistic for a personal tool, but **auto pause/resume + repeating reminders + crash recovery** pushes it beyond a simple timer script into a small system-integrated productivity app.
-- Supporting **per-entry thresholds** is a very nice choice: it is more flexible than global reminders and fits freelance work well, especially when some projects have “soft caps” like 4h/day.
+## Phase 1: Shared Core
+- FastAPI backend
+- Neon schema
+- token auth
+- device registration
+- client/project/session CRUD
+- single active timer rule
 
-## Sources:
+## Phase 2: Daily Usability
+- start/stop/switch/status
+- notes/tags
+- today/week/client/project reports
+- device reports
+- ownership model
 
-- Freedesktop Desktop Notifications Specification: ([specifications.freedesktop.org](https://specifications.freedesktop.org/notification-spec/latest/index.html?utm_source=openai))
-- Linux `notify-send` usage overview: ([linuxconfig.org](https://linuxconfig.org/how-to-send-desktop-notifications-using-notify-send?utm_source=openai))
-- ArchWiki notes on desktop notifications/session behavior: ([wiki.archlinux.org](https://wiki.archlinux.org/title/Desktop_notifications_%28%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9%29?utm_source=openai))
-- Linux/systemd D-Bus and suspend/resume references: ([askubuntu.com](https://askubuntu.com/questions/1354167/systemd-dbus-interfaces-for-suspend-and-resume-notification?utm_source=openai))
+## Phase 3: Device Intelligence
+- inactivity prompts
+- auto-pause
+- ownership transfer
+- event history
+
+## Phase 4: System Integration
+- Linux + Mac notifications
+- suspend/wake handling
+- short-sleep resume logic
+
+## Phase 5: Comfort Layer
+- full TUI
+- history views
+- recent sessions
+- better reporting polish
+
+---
+
+## 14. Smallest Worthwhile MVP
+The smallest version likely worth building is:
+
+- Python CLI on Linux and Mac
+- FastAPI backend
+- Neon Postgres
+- token auth
+- named devices
+- single active timer
+- start / stop / switch
+- status
+- ownership transfer
+- today/week/client/project/device reports
+- notes/tags
+- event history
+- simple prompt-then-auto-pause flow
+
+The TUI should still be in v1, but it could come immediately after the CLI-first MVP.
+
+---
+
+## 15. Acceptance Summary
+The system is acceptable for v1 when:
+
+- a single user can use the app on both Linux and Mac
+- both devices can view the same global timer state
+- only one active timer exists globally
+- switching automatically stops the current timer and starts the next
+- ownership is explicit and visible
+- ownership transfer works with confirmation
+- owner-device inactivity triggers prompt-then-auto-pause
+- owner-device suspend pauses the timer
+- wake resumes only if sleep lasted 2 minutes or less
+- per-entry reminders work and repeat every 10 minutes
+- notifications are delivered on the owner device
+- reports exist for today, week, client, project, and device
+- history shows important timer and ownership events
+- CLI and TUI are both usable for everyday workflow
+
+---
+
+## Interesting Findings
+- Your updated workflow makes **shared state and ownership** more important than raw idle detection. This is a product-shaping change.
+- Moving from local SQLite to **API + Postgres** is a meaningful scope increase, but it matches your real multi-device usage better.
+- Textual is a particularly strong fit here because it supports Python TUIs and explicitly documents that apps can run over SSH, which gives you flexibility later even though SSH-specific logic is out of scope for now. ([textual.textualize.io](https://textual.textualize.io/?utm_source=openai))
+- FastAPI’s API key/header patterns are a good fit for your “simple token” requirement. ([fastapi.tiangolo.com](https://fastapi.tiangolo.com/de/reference/security/?utm_source=openai))
+
+## Sources
+- Python `sqlite3` docs: ([docs.python.org](https://docs.python.org/3/library/sqlite3.html?utm_source=openai))
+- FastAPI security / API key header docs: ([fastapi.tiangolo.com](https://fastapi.tiangolo.com/de/reference/security/?utm_source=openai))
+- Textual docs and API: ([textual.textualize.io](https://textual.textualize.io/api/app/?utm_source=openai))
+- Neon documentation/source reference: ([neon.tech](https://neon.tech/pdf/DPA.pdf?utm_source=openai))
+
+If you want, next I can turn this into:
+1. a **technical design document**
+2. a **database schema**
+3. a **build plan with milestones**
+4. a **GitHub issues/task breakdown**
