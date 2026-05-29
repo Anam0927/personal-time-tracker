@@ -1,0 +1,7 @@
+{
+  "extends": "@time-tracker/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["index.ts"]
+}

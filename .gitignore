@@ -1,0 +1,8 @@
+node_modules/
+.turbo/
+dist/
+*.tsbuildinfo
+pnpm-debug.log
+.env
+.env.local
+.env.*.local

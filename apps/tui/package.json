@@ -1,0 +1,22 @@
+{
+  "name": "@time-tracker/tui",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "test": "echo 'no tests'",
+    "check-types": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check ."
+  },
+  "dependencies": {
+    "@time-tracker/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@time-tracker/typescript-config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

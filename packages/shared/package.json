@@ -1,0 +1,23 @@
+{
+  "name": "@time-tracker/shared",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "test": "echo 'no tests'",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check ."
+  },
+  "devDependencies": {
+    "@time-tracker/typescript-config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "time-tracker",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "check-types": "turbo run check-types",
+    "test": "turbo run test",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "dev": "turbo run dev"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.52.0",
+    "oxlint": "^1.67.0",
+    "turbo": "^2.9.16"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.5.0"
+}
