@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@time-tracker/typescript-config": "workspace:*",
+    "@types/node": "^22",
     "typescript": "catalog:"
   }
 }

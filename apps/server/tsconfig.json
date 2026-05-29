@@ -1,7 +1,5 @@
 {
-  "extends": "@time-tracker/typescript-config/base.json",
-  "compilerOptions": {
-    "outDir": "dist"
-  },
+  "extends": "@time-tracker/typescript-config/workers.json",
+  "compilerOptions": {},
   "include": ["index.ts"]
 }

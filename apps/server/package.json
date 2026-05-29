@@ -16,6 +16,7 @@
     "@time-tracker/shared": "workspace:*"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4",
     "@time-tracker/typescript-config": "workspace:*",
     "typescript": "catalog:"
   }
