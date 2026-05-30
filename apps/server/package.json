@@ -13,7 +13,8 @@
     "format:check": "oxfmt --check ."
   },
   "dependencies": {
-    "@time-tracker/shared": "workspace:*"
+    "@time-tracker/shared": "workspace:*",
+    "elysia": "^1.4.28"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",
