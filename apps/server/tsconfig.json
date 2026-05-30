@@ -1,5 +1,5 @@
 {
   "extends": "@time-tracker/typescript-config/workers.json",
   "compilerOptions": {},
-  "include": ["src"]
+  "include": ["src", "worker-configuration.d.ts"]
 }

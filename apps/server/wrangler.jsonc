@@ -3,6 +3,7 @@
   "name": "time-tracker-server",
   "main": "src/index.ts",
   "compatibility_date": "2025-06-01",
+  "workers_dev": true,
   "observability": {
     "enabled": true,
   },

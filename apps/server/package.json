@@ -8,17 +8,26 @@
     "lint:fix": "oxlint --fix .",
     "test": "echo 'no tests'",
     "check-types": "tsc --noEmit",
+    "db:generate": "tsc --project tsconfig.node.json --noEmit && drizzle-kit generate",
+    "db:push": "tsc --project tsconfig.node.json --noEmit && drizzle-kit push",
     "dev": "wrangler dev",
     "format": "oxfmt .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@elysiajs/jwt": "^1.4.2",
+    "@neondatabase/serverless": "^1.1.0",
     "@time-tracker/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",
     "@time-tracker/typescript-config": "workspace:*",
+    "@types/node": "^22.19.19",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
     "typescript": "catalog:",
     "wrangler": "^4.95.0"
   }
