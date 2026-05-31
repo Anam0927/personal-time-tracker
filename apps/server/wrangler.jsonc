@@ -1,8 +1,9 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "time-tracker-server",
   "main": "src/index.ts",
-  "compatibility_date": "2025-06-01",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat_v2"],
   "workers_dev": true,
   "observability": {
     "enabled": true,
