@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Turbo remote cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: turbo-cache-${{ github.sha }}
+          restore-keys: |
+            turbo-cache-
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Check types
+        run: pnpm check-types
+
+      - name: Test
+        run: pnpm test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PAIRING_CODE: ${{ secrets.PAIRING_CODE }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Build
+        run: pnpm build
+
+      - name: Deploy server
+        if: github.ref == 'refs/heads/main'
+        working-directory: apps/server
+        run: pnpm exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          PAIRING_CODE: ${{ secrets.PAIRING_CODE_PROD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET_PROD }}
