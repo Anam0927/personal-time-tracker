@@ -83,16 +83,15 @@ jobs:
       - name: Deploy preview
         working-directory: apps/server
         run: |
-          DEPLOY_NAME="preview-${{ github.event.number }}"
-          pnpm exec wrangler deploy \
-            --name "$DEPLOY_NAME" \
-            --var WORKERS_URL:"https://${DEPLOY_NAME}-time-tracker-server.time-tracker.workers.dev" \
+          ALIAS="preview-${{ github.event.number }}"
+          pnpm exec wrangler versions upload --preview-alias ${ALIAS}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PAIRING_CODE: ${{ secrets.PAIRING_CODE }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WORKERS_URL: https://preview-${{ github.event.number }}-time-tracker-server.time-tracker.workers.dev
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v6
