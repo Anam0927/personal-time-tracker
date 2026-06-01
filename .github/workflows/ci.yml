@@ -91,7 +91,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PAIRING_CODE: ${{ secrets.PAIRING_CODE }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          WORKERS_URL: https://preview-${{ github.event.number }}-time-tracker-server.time-tracker.workers.dev
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v6
