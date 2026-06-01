@@ -9,10 +9,12 @@ This document describes how to deploy and manage the `time-tracker-server` Cloud
 
 ## Environment Variables
 
-| Variable       | Source | Description                                    |
-| -------------- | ------ | ---------------------------------------------- |
-| `DATABASE_URL` | Secret | PostgreSQL connection string (Neon)            |
-| `JWT_SECRET`   | Secret | Secret key used for signing and verifying JWTs |
+| Variable       | Source | Description                                                                                                  |
+| -------------- | ------ | ------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL` | Secret | PostgreSQL connection URL (validated as a proper URL with `postgresql` protocol, e.g., `postgresql://...`)   |
+| `JWT_SECRET`   | Secret | Secret key used for signing and verifying JWTs                                                               |
+| `PAIRING_CODE` | Secret | Device pairing code — two groups of 4 uppercase alphanumeric chars separated by a hyphen (e.g., `AB12-CD34`) |
+| `WORKERS_URL`  | Secret | Base URL of the deployed worker (e.g., `https://worker.example.com`)                                         |
 
 ### Local Development
 
@@ -21,6 +23,8 @@ For local development, secrets are stored in `.env` (listed in `.gitignore`):
 ```
 DATABASE_URL="postgresql://..."
 JWT_SECRET="..."
+PAIRING_CODE="ABCD-1234"
+WORKERS_URL="http://localhost:8787"
 ```
 
 Wrangler reads this file automatically when running `pnpm run dev`.
@@ -41,6 +45,8 @@ pnpm exec wrangler secret put DATABASE_URL < ./path/to/secret.txt
 
 ```bash
 pnpm exec wrangler secret put JWT_SECRET
+pnpm exec wrangler secret put PAIRING_CODE
+pnpm exec wrangler secret put WORKERS_URL
 ```
 
 ### List Secrets
@@ -102,6 +108,13 @@ View live logs with:
 ```bash
 pnpm exec wrangler tail
 ```
+
+## Validation
+
+All environment variables are validated at runtime using zod. The worker will fail to start with a descriptive error if:
+
+- A required variable is missing
+- A variable has an invalid value (e.g., `JWT_SECRET` is shorter than 32 characters, `PAIRING_CODE` does not match `XXXX-XXXX` format with uppercase alphanumeric groups, `DATABASE_URL` is not a valid PostgreSQL URL, `WORKERS_URL` is not a valid URL)
 
 ## Troubleshooting
 

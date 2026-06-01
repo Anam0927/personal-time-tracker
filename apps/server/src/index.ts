@@ -1,8 +1,8 @@
 import { Elysia } from "elysia"
 import { CloudflareAdapter } from "elysia/adapter/cloudflare-worker"
 import { jwt } from "@elysiajs/jwt"
+import { env } from "./env"
 import { db } from "./db"
-import { env } from "cloudflare:workers"
 import { users } from "./db/schema"
 
 // Get JWT secret from env at module init
