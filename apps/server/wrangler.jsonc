@@ -8,7 +8,4 @@
     "enabled": true,
   },
   "upload_source_maps": true,
-  "vars": {
-    "WORKERS_URL": "https://tt-server.anaam.io",
-  },
 }

@@ -8,5 +8,5 @@
   "env": {
     "builtin": true
   },
-  "ignorePatterns": ["**/worker-configuration.d.ts"]
+  "ignorePatterns": ["apps/server/worker-configuration.d.ts"]
 }
