@@ -17,6 +17,8 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      TURBO_CACHE_DIR: .turbo
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -33,7 +35,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .turbo
-          key: turbo-cache-${{ github.sha }}
+          key: turbo-cache-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             turbo-cache-
 
@@ -56,8 +58,77 @@ jobs:
       - name: Build
         run: pnpm build
 
+  deploy-preview:
+    if: github.event_name == 'pull_request'
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      TURBO_CACHE_DIR: .turbo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy preview
+        working-directory: apps/server
+        run: |
+          DEPLOY_NAME="preview-${{ github.event.number }}"
+          pnpm exec wrangler deploy \
+            --name "$DEPLOY_NAME" \
+            --var WORKERS_URL:"https://${DEPLOY_NAME}-time-tracker-server.time-tracker.workers.dev" \
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PAIRING_CODE: ${{ secrets.PAIRING_CODE }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const previewUrl = `https://preview-${prNumber}-time-tracker-server.time-tracker.workers.dev`;
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Preview deployed: [${previewUrl}](${previewUrl})`
+            });
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      TURBO_CACHE_DIR: .turbo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Deploy server
-        if: github.ref == 'refs/heads/main'
         working-directory: apps/server
         run: pnpm exec wrangler deploy
         env:
